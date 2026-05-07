@@ -1,0 +1,51 @@
+# Rust build artefacts
+src-tauri/target/
+target/
+**/*.rs.bk
+
+# Tauri build output
+src-tauri/gen/
+dist/
+
+# Frontend deps
+node_modules/
+package-lock.json
+
+# Synced asset (regenerated at build time from /ui-system/)
+src/assets/koher-ui.css
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs
+*.log
+
+# Environment files (never commit secrets)
+.env
+.env.local
+
+# Tauri-specific
+WixTools/
+
+# Bundle artefacts
+bundle/
+
+# Flatpak-builder working directories
+.flatpak-builder/
+build-dir/
+
+# Compiled binaries — distributed via GitHub Releases, not in the repo
+*.dmg
+*.deb
+*.flatpak
+*.app
+*.tar.gz
+
+# Internal-only working notes (kept on the dev machine, not published)
+BUILD-STATUS.md
+CLAUDE.md
+

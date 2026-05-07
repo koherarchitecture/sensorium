@@ -1,0 +1,105 @@
+id: app.koher.sensorium
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+command: sensorium
+
+finish-args:
+  # Network access (for OpenRouter HTTPS + Ollama on host loopback)
+  - --share=network
+  - --share=ipc
+
+  # Display: Wayland with X11 fallback
+  - --socket=wayland
+  - --socket=fallback-x11
+
+  # Hardware acceleration
+  - --device=dri
+
+  # Keyring access (libsecret over D-Bus) — needed by the `keyring` crate
+  # for the OpenRouter API key storage. The `org.freedesktop.secrets`
+  # service is the standard freedesktop secret-storage interface.
+  - --talk-name=org.freedesktop.secrets
+
+  # No --filesystem=home and no broader sandbox holes. Sensorium reads
+  # and writes only its own config dir (resolved by `dirs::config_dir()`
+  # to ~/.var/app/app.koher.sensorium/config inside the sandbox).
+
+modules:
+  - name: sensorium
+    buildsystem: simple
+    sources:
+      # The .deb is produced by `npx tauri build --bundles deb` from the
+      # sensorium build root. Path is relative to this manifest file.
+      - type: file
+        path: ../../src-tauri/target/release/bundle/deb/sensorium_0.1.0_amd64.deb
+    build-commands:
+      # Extract the Debian package payload.
+      - ar x sensorium_0.1.0_amd64.deb
+      - mkdir -p deb-payload
+      - tar -xf data.tar.gz -C deb-payload || tar -xf data.tar.xz -C deb-payload || tar -xf data.tar.zst -C deb-payload
+
+      # Install the binary to /app/bin (flatpak's standard prefix).
+      - install -Dm755 deb-payload/usr/bin/sensorium /app/bin/sensorium
+
+      # Install the .desktop file. The deb ships it as sensorium.desktop
+      # (because productName is "sensorium"), and the file's Name= is
+      # already "Sensorium" via the custom desktop template at
+      # ../linux/sensorium.desktop referenced from tauri.conf.json.
+      # Flatpak requires the file's basename to equal the app-id, so we
+      # rename to app.koher.sensorium.desktop and rewrite the Icon= line
+      # to match the icon's new app-id-prefixed name (set below).
+      - install -Dm644 deb-payload/usr/share/applications/sensorium.desktop /app/share/applications/app.koher.sensorium.desktop
+      - sed -i 's|^Icon=.*|Icon=app.koher.sensorium|' /app/share/applications/app.koher.sensorium.desktop
+
+      # Icons: copy each available size, renaming each file to match the
+      # app-id (flatpak requirement for the desktop launcher to find the
+      # icon). Sizes Tauri generates: 32x32, 128x128, 256x256@2, 512x512.
+      - |
+        set -e
+        for size in 32x32 128x128 128x128@2 256x256 256x256@2 512x512; do
+          src="deb-payload/usr/share/icons/hicolor/${size}/apps/sensorium.png"
+          if [ -f "$src" ]; then
+            install -Dm644 "$src" "/app/share/icons/hicolor/${size}/apps/app.koher.sensorium.png"
+          fi
+        done
+
+      # AppStream metainfo (optional but recommended for software-centre
+      # discovery). Provides the catalog entry. Inline so the manifest is
+      # self-contained.
+      - |
+        mkdir -p /app/share/metainfo
+        cat > /app/share/metainfo/app.koher.sensorium.metainfo.xml <<'METAINFO'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <component type="desktop-application">
+          <id>app.koher.sensorium</id>
+          <name>Sensorium</name>
+          <summary>Filter cartography around your LLM chat</summary>
+          <metadata_license>CC0-1.0</metadata_license>
+          <project_license>AGPL-3.0-only</project_license>
+          <developer id="app.koher">
+            <name>Koher Architecture</name>
+          </developer>
+          <description>
+            <p>
+              Sensorium is a desktop application that surrounds an LLM chat
+              with a single distinctive side panel: a flavour map of the
+              model the user is talking to. Each flavour cuts the model
+              surface differently. The first flavour to ship is Sycophancy —
+              five axes (planted falsehood, pressure-reversal, mediocre-praise,
+              contradiction-validation, certainty-validation), each rendered
+              HOLDS / SOFTENS / FOLDS — derived empirically through adaptive
+              probing, classified by a small local model, narrated in plain
+              language.
+            </p>
+          </description>
+          <launchable type="desktop-id">app.koher.sensorium.desktop</launchable>
+          <url type="homepage">https://koher.app/sensorium</url>
+          <url type="bugtracker">https://github.com/koherarchitecture/sensorium/issues</url>
+          <url type="vcs-browser">https://github.com/koherarchitecture/sensorium</url>
+          <content_rating type="oars-1.1"/>
+          <releases>
+            <release version="0.1.0" date="2026-06-15"/>
+          </releases>
+        </component>
+        METAINFO

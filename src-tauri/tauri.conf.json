@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "sensorium",
+  "mainBinaryName": "sensorium",
+  "version": "0.1.0",
+  "identifier": "app.koher.sensorium",
+  "build": {
+    "frontendDist": "../src",
+    "beforeBuildCommand": "bash scripts/sync-koher-ui.sh"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Sensorium",
+        "width": 1100,
+        "height": 740,
+        "minWidth": 880,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "titleBarStyle": "Visible"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "deb"],
+    "category": "DeveloperTool",
+    "shortDescription": "Filter cartography around your LLM chat.",
+    "longDescription": "Sensorium is a desktop application that surrounds an LLM chat with a single distinctive side panel: a flavour map of the model the user is talking to. Each flavour cuts the model surface differently. The first flavour to ship is Sycophancy — five axes (planted falsehood, pressure-reversal, mediocre-praise, contradiction-validation, certainty-validation) each rendered HOLDS / SOFTENS / FOLDS, derived empirically through adaptive probing, classified by a small local model, narrated in plain language.",
+    "resources": [
+      "../flavours/*.json"
+    ],
+    "copyright": "Koher Architecture, AGPL-3.0",
+    "publisher": "Koher Architecture",
+    "homepage": "https://koher.app/sensorium",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "entitlements": null
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1"
+        ],
+        "section": "utils",
+        "priority": "optional",
+        "desktopTemplate": "../packaging/linux/sensorium.desktop"
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}} %U
+Icon={{icon}}
+Name=Sensorium
+GenericName=LLM filter cartography
+Terminal=false
+Type=Application
+StartupWMClass=sensorium
+Keywords=LLM;AI;chat;cartography;Koher;
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}

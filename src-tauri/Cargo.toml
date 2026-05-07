@@ -1,0 +1,73 @@
+[package]
+name = "sensorium"
+version = "0.1.0"
+description = "Surrounds an LLM chat with a filter cartography of the model's behaviour"
+edition = "2021"
+rust-version = "1.77"
+authors = ["Koher Architecture"]
+license = "AGPL-3.0"
+
+[lib]
+name = "sensorium_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri runtime — major version pinned at 2; npm @tauri-apps/cli + api in
+# package.json must share the same major.minor as this crate (currently 2.10.x).
+# Mismatched major.minor across crate / cli / api triggers a hard error at build.
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-http = "2"
+tauri-plugin-dialog = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Serialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+futures-util = "0.3"
+
+# OS keychain (cross-platform)
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent"] }
+
+# Encrypted-file fallback when the OS keychain is unavailable (e.g. minimal
+# Linux installs without a Secret Service / unlocked login keyring).
+# ChaCha20-Poly1305 AEAD with a per-install 32-byte random key.
+chacha20poly1305 = "0.10"
+rand = "0.8"
+
+# System info — for RAM-aware Ollama model recommendations
+sysinfo = "0.32"
+
+# Regex (Q-layer fallback classifier)
+regex = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

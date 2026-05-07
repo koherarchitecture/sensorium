@@ -1,0 +1,406 @@
+// IPC commands — the renderer's only contact with the Rust core.
+//
+// Each #[tauri::command] is registered in lib.rs::run().
+// State is passed via tauri::State<AppState>.
+
+use crate::probes::runner::{self, RunnerConfig};
+use crate::providers::{ChatMessageInput, ChatOpts, OpenRouterClient};
+use crate::schema::{Fingerprint, WorkflowState};
+use crate::system_info::{self, OllamaRecommendation, SystemInfo};
+use crate::{keychain, narrator, ollama, settings, AppState};
+use serde::Deserialize;
+use std::sync::Arc;
+use tauri::{Emitter, State, Window};
+
+// ── System / first-run setup ──────────────────────────────────────
+
+#[tauri::command]
+pub fn system_info() -> SystemInfo {
+    system_info::capture()
+}
+
+#[tauri::command]
+pub fn recommend_ollama_model() -> OllamaRecommendation {
+    let info = system_info::capture();
+    system_info::recommend_ollama(&info)
+}
+
+// ── Settings ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_settings(state: State<'_, AppState>) -> Result<settings::Settings, String> {
+    let s = state.settings.read().await.clone();
+    Ok(s)
+}
+
+#[tauri::command]
+pub async fn update_settings(
+    app: tauri::AppHandle,
+    new: settings::Settings,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    new.validate()?;
+    {
+        let mut s = state.settings.write().await;
+        *s = new.clone();
+    }
+    // Persist to <app_config>/preferences.json. Failure is logged but
+    // does not fail the IPC call — settings still apply in-memory.
+    if let Err(e) = settings::save_to_disk(&app, &new) {
+        tracing::warn!("failed to persist settings: {e}");
+    }
+    Ok(())
+}
+
+// ── API key ───────────────────────────────────────────────────────
+
+fn config_dir_of(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    use tauri::Manager;
+    app.path().app_config_dir().ok()
+}
+
+#[tauri::command]
+pub async fn has_api_key(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    if state.openrouter_key.read().await.is_some() {
+        return Ok(true);
+    }
+    let dir = config_dir_of(&app);
+    match keychain::get_openrouter_key(dir.as_deref()) {
+        Ok(Some(k)) => {
+            *state.openrouter_key.write().await = Some(k);
+            Ok(true)
+        }
+        Ok(None) => Ok(false),
+        Err(e) => Err(format!("keychain error: {e}")),
+    }
+}
+
+#[tauri::command]
+pub async fn set_api_key(
+    app: tauri::AppHandle,
+    key: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let dir = config_dir_of(&app);
+    keychain::set_openrouter_key(&key, dir.as_deref()).map_err(|e| e.to_string())?;
+    *state.openrouter_key.write().await = Some(key);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_api_key(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let dir = config_dir_of(&app);
+    keychain::clear_openrouter_key(dir.as_deref()).map_err(|e| e.to_string())?;
+    *state.openrouter_key.write().await = None;
+    Ok(())
+}
+
+// ── Provider models ───────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_models(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::providers::ModelInfo>, String> {
+    let key = state
+        .openrouter_key
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "OpenRouter key not set".to_string())?;
+    let client = OpenRouterClient::new(key);
+    let models = client.list_models().await.map_err(|e| e.to_string())?;
+    // Side-effect: populate the per-model pricing cache so streamed
+    // chat can compute cost without a network round-trip per call.
+    {
+        let mut cache = state.pricing_cache.write().await;
+        for m in &models {
+            if let (Some(p_in), Some(p_out)) = (m.pricing_in, m.pricing_out) {
+                cache.insert(m.id.clone(), (p_in, p_out));
+            }
+        }
+    }
+    Ok(models)
+}
+
+// ── Ollama status ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn ollama_status(state: State<'_, AppState>) -> Result<ollama::OllamaStatus, String> {
+    let model = state.settings.read().await.ollama_model.clone();
+    let client = ollama::OllamaClient::new(&model);
+    Ok(client.status(&model).await)
+}
+
+/// Pull an Ollama model from the registry, streaming progress events
+/// to the renderer. Each NDJSON line from `/api/pull` is forwarded as
+/// an `ollama-pull-progress` event with payload `{status, digest?,
+/// total?, completed?, error?}`. Returns when the pull reaches
+/// `status: "success"` (or errors).
+#[tauri::command]
+pub async fn ollama_pull(window: Window, model: String) -> Result<(), String> {
+    tracing::info!("ollama_pull invoked: model={}", model);
+
+    if model.trim().is_empty() {
+        return Err("model tag must not be empty".to_string());
+    }
+
+    let client = ollama::OllamaClient::new(&model);
+    let win = window.clone();
+
+    let result = client
+        .pull_model_stream(&model, move |progress| {
+            tracing::info!(
+                "pull progress: status={} completed={:?} total={:?}",
+                progress.status,
+                progress.completed,
+                progress.total
+            );
+            match win.emit("ollama-pull-progress", &progress) {
+                Ok(()) => {}
+                Err(e) => tracing::warn!("emit ollama-pull-progress failed: {e}"),
+            }
+        })
+        .await;
+
+    match result {
+        Ok(()) => {
+            tracing::info!("ollama_pull completed: model={}", model);
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("ollama_pull failed: {}", e);
+            Err(format!("ollama pull failed: {e}"))
+        }
+    }
+}
+
+// ── Calibration / refresh ─────────────────────────────────────────
+
+#[tauri::command]
+pub async fn run_calibration(state: State<'_, AppState>) -> Result<Fingerprint, String> {
+    run_probes(&state, /* thin_mode = */ true).await
+}
+
+#[tauri::command]
+pub async fn run_full_refresh(state: State<'_, AppState>) -> Result<Fingerprint, String> {
+    run_probes(&state, /* thin_mode = */ false).await
+}
+
+async fn run_probes(state: &State<'_, AppState>, thin_mode: bool) -> Result<Fingerprint, String> {
+    // Snapshot settings + key under read locks (don't hold across the long-running run).
+    let settings = state.settings.read().await.clone();
+    settings.validate().map_err(|e| e.to_string())?;
+
+    let key = state
+        .openrouter_key
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "OpenRouter key not set".to_string())?;
+
+    let openrouter = OpenRouterClient::new(key);
+    let ollama = ollama::OllamaClient::new(&settings.ollama_model);
+
+    // Resolve the active flavour from state. If absent, we cannot run
+    // probes — the engine is flavour-driven from v0.1 onward.
+    let flavour_cfg = state
+        .flavour
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "no flavour loaded — install a flavour config first".to_string())?;
+
+    let cfg = RunnerConfig {
+        model: settings.active_model.clone(),
+        mode: settings.narration_mode,
+        budget_usd: settings.filter_cartography_budget_usd,
+        thin_mode,
+        flavour: flavour_cfg,
+        probe_selection: settings.probe_selection.clone(),
+    };
+
+    let mut fingerprint = if thin_mode {
+        runner::run_calibration(cfg, &openrouter, &ollama)
+            .await
+            .map_err(|e| format!("calibration failed: {e}"))?
+    } else {
+        runner::run_full_refresh(cfg, &openrouter, &ollama)
+            .await
+            .map_err(|e| format!("refresh failed: {e}"))?
+    };
+
+    // Pass the fingerprint through the narrator to fill the reading
+    // field. Narration is best-effort: if it fails we still return the
+    // fingerprint with no reading rather than failing the whole call.
+    match narrator::narrate(&fingerprint, settings.narration_mode, &openrouter).await {
+        Ok(reading) => {
+            fingerprint.reading = reading;
+        }
+        Err(e) => {
+            tracing::warn!("narrator failed (returning fingerprint without reading): {e}");
+        }
+    }
+
+    Ok(fingerprint)
+}
+
+// ── Chat ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChatTurn {
+    pub role: String,
+    pub content: String,
+}
+
+#[tauri::command]
+pub async fn send_chat_message(
+    window: Window,
+    model: String,
+    messages: Vec<ChatTurn>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let key = state
+        .openrouter_key
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "OpenRouter key not set".to_string())?;
+
+    let client = OpenRouterClient::new(key);
+
+    let inputs: Vec<ChatMessageInput> = messages
+        .into_iter()
+        .map(|m| ChatMessageInput { role: m.role, content: m.content })
+        .collect();
+
+    if inputs.is_empty() {
+        return Err("messages must contain at least one turn".to_string());
+    }
+
+    // Clone the window so the streaming closure outlives this future's
+    // borrow. Tauri's Window is cheaply cloneable (it wraps an Arc).
+    let win = window.clone();
+
+    let result = client
+        .chat_stream(
+            &model,
+            &inputs,
+            ChatOpts::default(),
+            move |chunk| {
+                // Best-effort emit; if the renderer side has unmounted
+                // we don't want to abort the stream.
+                let _ = win.emit("chat-chunk", chunk);
+            },
+        )
+        .await
+        .map_err(|e| format!("chat stream failed: {e}"))?;
+
+    // OpenRouter's SSE stream does not include `usage.cost`; compute
+    // from the per-model pricing cache populated by `list_models`. Cost
+    // is logged for operator visibility (commodity telemetry per spec
+    // §17 — not surfaced to the user). If the cache lacks pricing for
+    // this model, log a hint and skip.
+    {
+        let cache = state.pricing_cache.read().await;
+        match cache.get(&model) {
+            Some((p_in, p_out)) => {
+                let cost_usd =
+                    (result.tokens_in as f64) * p_in + (result.tokens_out as f64) * p_out;
+                tracing::info!(
+                    "chat cost {model}: in={} out={} cost=${:.6}",
+                    result.tokens_in,
+                    result.tokens_out,
+                    cost_usd
+                );
+            }
+            None => {
+                tracing::debug!(
+                    "no pricing cached for {model}; call list_models to populate the cache"
+                );
+            }
+        }
+    }
+
+    Ok(result.text)
+}
+
+// ── Probe set transparency ────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_probe_set(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let cfg = state
+        .flavour
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "no flavour loaded".to_string())?;
+    Ok(crate::probes::probe_bank(&cfg))
+}
+
+// ── Flavour management ────────────────────────────────────────────
+
+/// Seed the active flavour into user-data on first run, then reload.
+///
+/// The flavour file ships bundled inside the app at
+/// `<bundle-resources>/flavours/<slug>.json`. On first run the wizard
+/// calls this command so the file is copied to
+/// `<user-data>/flavours/<slug>.json` — making it user-editable and
+/// available even when the dev-fallback path doesn't apply (installed
+/// .deb / .flatpak / .dmg builds do not have a working-directory
+/// `flavours/` folder; only `cargo tauri dev` does).
+///
+/// Idempotent: returns `Ok(())` without re-copying when the user-data
+/// file already exists.
+#[tauri::command]
+pub async fn seed_active_flavour(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let slug = state.settings.read().await.active_flavour.clone();
+
+    let user_data_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("resolve user data dir: {e}"))?;
+    let bundle_resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resolve bundle resource dir: {e}"))?;
+
+    crate::flavour::ensure_flavour_in_user_data(&slug, &user_data_dir, &bundle_resource_dir)
+        .map_err(|e| format!("seed flavour '{slug}': {e}"))?;
+
+    // Reload the in-memory flavour from disk so the engine immediately
+    // uses the just-seeded copy (the loader prefers user-data over bundle).
+    match crate::flavour::load_flavour(&slug, Some(&user_data_dir), Some(&bundle_resource_dir)) {
+        Ok(cfg) => {
+            *state.flavour.write().await = Some(cfg);
+            Ok(())
+        }
+        Err(e) => Err(format!("reload flavour '{slug}' after seed: {e}")),
+    }
+}
+
+// ── Workflow ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_workflow() -> Result<WorkflowState, String> {
+    Ok(crate::workflow::current())
+}
+
+#[tauri::command]
+pub async fn clear_workflow() -> Result<(), String> {
+    crate::workflow::clear();
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn _unused(_arc: Arc<()>) {}

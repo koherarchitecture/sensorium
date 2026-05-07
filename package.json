@@ -1,0 +1,25 @@
+{
+  "name": "sensorium",
+  "version": "0.1.0",
+  "description": "Surrounds an LLM chat with a filter cartography of the model's behaviour.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:mac-arm": "tauri build --target aarch64-apple-darwin",
+    "build:mac-intel": "tauri build --target x86_64-apple-darwin",
+    "build:linux-deb": "tauri build --bundles deb",
+    "build:linux-all": "tauri build --bundles deb",
+    "package:flatpak": "bash scripts/build-flatpak.sh",
+    "sync-ui": "bash scripts/sync-koher-ui.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "~2.10.1"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "~2.10.1",
+    "@tauri-apps/plugin-store": "^2.4.3"
+  }
+}

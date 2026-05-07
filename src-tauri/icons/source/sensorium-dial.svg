@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Sensorium launcher icon. Master 1024x1024 SVG. Mirrors the in-app
+  brand mark: a sensor dial. The face is a circle with four cardinal
+  tick marks (N, E, S, W) and a filled centre dot. Drawn on a rounded
+  square in the bench/paper palette so the launcher reads at any size
+  against light or dark backgrounds. Tokens: bench #2A2F31 face, ink
+  #F2EAD9 strokes, terracotta #C75B39 centre dot (Koher accent).
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+
+  <!-- Rounded square face. Corner radius matches GNOME / macOS idiom. -->
+  <rect x="64" y="64" width="896" height="896" rx="180" ry="180"
+        fill="#2A2F31"/>
+
+  <!-- Outer dial ring. Stroke only on the dark face. -->
+  <circle cx="512" cy="512" r="312"
+          fill="none"
+          stroke="#F2EAD9"
+          stroke-width="36"/>
+
+  <!-- Cardinal tick marks N E S W. Round caps for a calibrated feel. -->
+  <g stroke="#F2EAD9" stroke-width="36" stroke-linecap="round">
+    <line x1="512" y1="120" x2="512" y2="200"/>
+    <line x1="512" y1="824" x2="512" y2="904"/>
+    <line x1="120" y1="512" x2="200" y2="512"/>
+    <line x1="824" y1="512" x2="904" y2="512"/>
+  </g>
+
+  <!-- Centre dot. Terracotta. The brand colour without tinting the face. -->
+  <circle cx="512" cy="512" r="86"
+          fill="#C75B39"/>
+</svg>
