@@ -94,6 +94,25 @@ Report back: SHA-256 of each artefact built, file sizes, build duration, any war
 
 **Repo visibility.** `koherarchitecture` org defaults to private despite `gh repo create --public`. The sensorium repo is already public from the v0.1.0 release; no action needed for v0.1.1.
 
+**Dropbox-syncs-`.git/` corruption (observed 8 May 2026 on amd64 host).** The `.git/` folder is inside the Dropbox-synced tree, so its pack/loose object files sync between hosts piecemeal. A host can wake up with a working tree that disagrees with `.git/objects` (e.g. tracked files showing as "deleted" or `Could not read <sha>` errors during `git log`). Symptom on amd64 was both at once: `releases/linux-arm64/sensorium_0.1.1_arm64.deb` shown as deleted, and missing objects for the two most recent commits.
+
+Recovery, before doing anything destructive:
+
+```bash
+git fetch origin --force --prune
+git fsck 2>&1 | head -10                # see what's missing locally
+git reset --hard origin/main            # align working tree to remote
+git clean -fd                           # remove Dropbox sync cruft (untracked files only)
+git status                              # expect a clean tree
+```
+
+This pulls any objects the local `.git/` is missing, then forces the working tree to match `origin/main`. The destructive flags (`--hard`, `-fd`) are safe **only if** the host has not yet committed work locally — if it has, push first, or stash, before resetting. If `git push` is auth-blocked on this host (see arm64 caveat below), the safe move is to *commit* (so the work is recorded), then ask the orchestration host (Mac) to push for you.
+
+**Long-term fix:** `.git/` should not be Dropbox-synced. Two options exist; both are tracked as follow-up work in `tools-scratch/02-sensorium/sensorium/BUILD-STATUS.md` and not blocking v0.1.1:
+
+1. Add a Dropbox selective-sync exclusion for `.git/` in this folder, and clone fresh on each host into a non-synced parallel location.
+2. Restructure so each host has its own checkout of `koherarchitecture/sensorium` outside Dropbox, with the source files pulled via `git pull` rather than via Dropbox.
+
 ---
 
 ## After all four legs land (Mac orchestrates)
