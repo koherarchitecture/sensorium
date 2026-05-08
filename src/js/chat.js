@@ -9,13 +9,18 @@
 // surfaces errors without breaking the UI.
 
 import { isTauri, Chat } from './ipc.js';
+import { renderMarkdown } from './markdown.js';
 
 const STATE = {
   history: [],          // array of { role, content }
   streaming: false,
   unlisten: null,       // chat-chunk event unlisten fn
   currentAssistantEl: null,
+  currentAssistantBuffer: '',  // raw markdown buffer for the streaming reply
   inputEl: null,        // cached reference for focusInput()
+  sendEl: null,         // cached send button — disabled while streaming
+  newChatEl: null,      // "+ New chat" pill — visibility tracks history
+  exchangeNum: 0,       // running counter for the meta `.num` label
 };
 
 let _activeModel = 'anthropic/claude-sonnet-4.6';
@@ -27,24 +32,47 @@ export async function init({ model } = {}) {
   const input = composer ? composer.querySelector('textarea, input[type="text"]') : null;
   const send = composer ? composer.querySelector('[data-action="send"], button[type="submit"]') : null;
   STATE.inputEl = input;
+  STATE.sendEl = send;
 
-  // Enter to send (Shift+Enter for newline).
+  // Submit handler — clears the input immediately so the user gets visible
+  // feedback that Send fired, before awaiting the model response. The
+  // pending state is signalled by the disabled send button + textarea.
+  function submit() {
+    if (!input || STATE.streaming) return;
+    const text = (input.value || '').trim();
+    if (!text) return;
+    input.value = '';
+    sendMessage(text);
+  }
+
   if (input) {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        const text = (input.value || '').trim();
-        if (text) sendMessage(text).then(() => { input.value = ''; });
+        submit();
       }
     });
   }
-
   if (send) {
-    send.addEventListener('click', () => {
-      if (!input) return;
-      const text = (input.value || '').trim();
-      if (text) sendMessage(text).then(() => { input.value = ''; });
+    send.addEventListener('click', submit);
+  }
+
+  // "New chat" pill — clears conversation history and the rendered scroll.
+  // Lives in markup as `[data-action="new-chat"]` inside `.chat`. Hidden
+  // by default; revealed once the first message is appended. Disabled
+  // while streaming to avoid clearing mid-response.
+  STATE.newChatEl = document.querySelector('.chat .chat-action[data-action="new-chat"]');
+  if (STATE.newChatEl) {
+    STATE.newChatEl.addEventListener('click', () => {
+      // Only refuse mid-stream. Otherwise always clear — the chat-scroll
+      // can carry static sample exchanges baked into the HTML that
+      // aren't tracked in STATE.history; "Clear" should mean "clear
+      // what I see", not "clear what state thinks I have".
+      if (STATE.streaming) return;
+      clearChat();
     });
+    // Visual state tracks DOM content rather than internal history.
+    refreshNewChatVisualState();
   }
 
   // Wire chat-chunk event listener.
@@ -79,6 +107,7 @@ export function focusInput() {
 export async function sendMessage(content) {
   if (STATE.streaming) return;
   STATE.streaming = true;
+  setComposerEnabled(false);
 
   STATE.history.push({ role: 'user', content });
   appendUserMessage(content);
@@ -95,8 +124,9 @@ export async function sendMessage(content) {
       // text in one go), settle the assistant bubble with finalText.
       if (STATE.currentAssistantEl) {
         const body = STATE.currentAssistantEl.querySelector('.exchange-body') || STATE.currentAssistantEl;
-        if (!body.textContent || body.textContent.length < (finalText || '').length) {
-          body.textContent = finalText || '';
+        if ((finalText || '').length > STATE.currentAssistantBuffer.length) {
+          STATE.currentAssistantBuffer = finalText || '';
+          body.innerHTML = renderMarkdown(STATE.currentAssistantBuffer);
         }
       }
       STATE.history.push({ role: 'assistant', content: finalText || '' });
@@ -106,7 +136,8 @@ export async function sendMessage(content) {
       const reply = `(preview) Echo: ${content}`;
       if (STATE.currentAssistantEl) {
         const body = STATE.currentAssistantEl.querySelector('.exchange-body') || STATE.currentAssistantEl;
-        body.textContent = reply;
+        STATE.currentAssistantBuffer = reply;
+        body.innerHTML = renderMarkdown(reply);
       }
       STATE.history.push({ role: 'assistant', content: reply });
     }
@@ -122,39 +153,131 @@ export async function sendMessage(content) {
     }
     STATE.streaming = false;
     STATE.currentAssistantEl = null;
+    STATE.currentAssistantBuffer = '';
+    setComposerEnabled(true);
+    focusInput();
   }
+}
+
+function setComposerEnabled(enabled) {
+  if (STATE.inputEl) STATE.inputEl.disabled = !enabled;
+  if (STATE.sendEl) STATE.sendEl.disabled = !enabled;
+  // The "New chat" pill stays clickable always; visual dim tracks
+  // whether there's anything to clear and whether we're streaming.
+  refreshNewChatVisualState();
+}
+
+// Visual dim only — the click handler itself guards behaviour. The
+// `is-dim` class drops opacity to 0.35 so the user sees the button is
+// inactive, but clicks still reach the handler and are no-op'd inside.
+// This is more robust than `disabled` against any quirk where a click
+// is silently swallowed by an attribute change between mousedown/up.
+//
+// "Has content" is read from the DOM, not from STATE — the chat-scroll
+// can carry static sample exchanges that aren't in STATE.history.
+function refreshNewChatVisualState() {
+  if (!STATE.newChatEl) return;
+  const scroll = document.querySelector('.chat-scroll');
+  const hasContent = !!(scroll && scroll.firstElementChild);
+  const inactive = STATE.streaming || !hasContent;
+  STATE.newChatEl.classList.toggle('is-dim', inactive);
+}
+
+// Clear the rendered transcript and the in-memory history. Re-focuses the
+// composer so the next prompt can be typed without clicking back. Does
+// nothing while a response is streaming — guard at the call site, but
+// repeated here defensively so direct callers can't break the streaming
+// invariant.
+export function clearChat() {
+  if (STATE.streaming) return;
+  STATE.history = [];
+  STATE.exchangeNum = 0;
+  STATE.currentAssistantEl = null;
+  STATE.currentAssistantBuffer = '';
+  const scroll = document.querySelector('.chat-scroll');
+  if (scroll) {
+    while (scroll.firstChild) scroll.removeChild(scroll.firstChild);
+    scroll.scrollTop = 0;
+  }
+  refreshNewChatVisualState();
+  focusInput();
+}
+
+// Pull a short, gutter-friendly speaker label from the active model id.
+// `anthropic/claude-sonnet-4.6` -> `Claude` ; `openai/gpt-4o` -> `GPT-4o` ;
+// fallback: the part after `/`, capitalised. The full identifier remains
+// visible in the top header bar; the per-message label is for legibility
+// inside a 56px gutter.
+function shortModelLabel(model) {
+  if (!model) return 'model';
+  const tail = String(model).split('/').pop() || model;
+  // Map the common families to a friendly short name.
+  if (/claude/i.test(tail)) return 'Claude';
+  if (/^gpt[-_]?(\w+)/i.test(tail)) return tail.replace(/^gpt[-_]?/i, 'GPT-');
+  if (/gemini/i.test(tail)) return 'Gemini';
+  if (/llama/i.test(tail)) return 'Llama';
+  if (/mistral/i.test(tail)) return 'Mistral';
+  if (/qwen/i.test(tail)) return 'Qwen';
+  // Fallback: take the leading word fragment up to first separator.
+  const first = tail.split(/[-_.\s]/)[0] || tail;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+
+function nowHms() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}·${pad(d.getMinutes())}·${pad(d.getSeconds())}`;
 }
 
 function appendUserMessage(text) {
   const scroll = document.querySelector('.chat-scroll');
   if (!scroll) return;
+  STATE.exchangeNum += 1;
   const article = document.createElement('article');
   article.className = 'exchange user';
+  const num = String(STATE.exchangeNum).padStart(2, '0');
   article.innerHTML = `
-    <header class="exchange-meta">you</header>
+    <header class="exchange-meta">
+      <span class="num">${num}</span>
+      <span class="who">You</span>
+      <span class="time">${nowHms()}</span>
+    </header>
     <div class="exchange-body"></div>
   `;
-  article.querySelector('.exchange-body').textContent = text;
+  // User input is rendered as plain text — never run user input through
+  // the markdown parser. Preserve newlines as line breaks.
+  const body = article.querySelector('.exchange-body');
+  body.textContent = text;
   scroll.appendChild(article);
   scroll.scrollTop = scroll.scrollHeight;
+  refreshNewChatVisualState();
 }
 
 function beginAssistantMessage() {
   const scroll = document.querySelector('.chat-scroll');
   if (!scroll) return;
+  STATE.exchangeNum += 1;
   const article = document.createElement('article');
   // The `streaming` class drives the blinking ▍ caret-indicator on the
   // last paragraph. Removed in sendMessage's finally block once the
   // response settles so the caret doesn't keep blinking after the
   // model finishes.
   article.className = 'exchange model streaming';
+  const num = String(STATE.exchangeNum).padStart(2, '0');
+  const who = escapeHtml(shortModelLabel(_activeModel));
   article.innerHTML = `
-    <header class="exchange-meta">${escapeHtml(_activeModel)}</header>
+    <header class="exchange-meta" title="${escapeHtml(_activeModel)}">
+      <span class="num">${num}</span>
+      <span class="who">${who}</span>
+      <span class="time">${nowHms()}</span>
+    </header>
     <div class="exchange-body"></div>
   `;
   scroll.appendChild(article);
   scroll.scrollTop = scroll.scrollHeight;
   STATE.currentAssistantEl = article;
+  STATE.currentAssistantBuffer = '';
+  refreshNewChatVisualState();
 }
 
 function appendChunkToCurrent(chunk) {
@@ -165,7 +288,12 @@ function appendChunkToCurrent(chunk) {
   if (typeof chunk === 'string') text = chunk;
   else if (chunk && typeof chunk.delta === 'string') text = chunk.delta;
   else if (chunk && typeof chunk.content === 'string') text = chunk.content;
-  if (text) body.textContent += text;
+  if (text) {
+    STATE.currentAssistantBuffer += text;
+    // Re-render the full buffer through the markdown parser. Fast enough
+    // for a single message; keeps formatting correct while streaming.
+    body.innerHTML = renderMarkdown(STATE.currentAssistantBuffer);
+  }
 
   const scroll = document.querySelector('.chat-scroll');
   if (scroll) scroll.scrollTop = scroll.scrollHeight;

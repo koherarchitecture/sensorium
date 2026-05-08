@@ -38,12 +38,18 @@ bundle/
 .flatpak-builder/
 build-dir/
 
-# Compiled binaries — distributed via GitHub Releases, not in the repo
+# Compiled binaries — distributed via GitHub Releases, not in the repo.
+# Exception: `releases/<platform-arch>/` is the cross-host staging area —
+# build outputs travel between Mac / Linux dev hosts via the repo before
+# being attached to a GitHub Release. See `releases/README.md`.
 *.dmg
 *.deb
 *.flatpak
 *.app
 *.tar.gz
+!releases/**/*.dmg
+!releases/**/*.deb
+!releases/**/*.flatpak
 
 # Internal-only working notes (kept on the dev machine, not published)
 BUILD-STATUS.md

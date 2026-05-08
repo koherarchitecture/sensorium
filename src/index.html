@@ -602,6 +602,58 @@ html, body {
     );
 }
 
+/* Chat header strip — small top row inside `.chat`. Hosts the "New chat"
+   button. Flex-based (not absolutely positioned) so the click target is
+   never contested by the chat-scroll's stacking context. */
+.chat-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 18px 0;
+  background: transparent;
+  position: relative;
+  z-index: 5;
+}
+.chat-action {
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--bench-rule);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: var(--type-label, 'IBM Plex Sans', sans-serif);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-bench-2);
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  pointer-events: auto;
+}
+.chat-action:hover {
+  border-color: var(--hue-bronze);
+  color: var(--hue-bronze);
+  background: rgba(160, 130, 59, 0.12);
+}
+.chat-action.is-dim {
+  opacity: 0.35;
+  cursor: default;
+}
+.chat-action.is-dim:hover {
+  border-color: var(--bench-rule);
+  color: var(--ink-bench-2);
+  background: rgba(0, 0, 0, 0.32);
+}
+.chat-action .plus {
+  display: inline-block;
+  margin-right: 6px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-size: 11px;
+  line-height: 1;
+}
+
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
@@ -672,6 +724,78 @@ html, body {
 }
 .exchange-body p { margin: 0 0 14px; }
 .exchange-body p:last-child { margin: 0; }
+/* Rendered-markdown elements inside an assistant reply. Sized down from
+   the global heading scale so a `## Subhead` mid-reply reads as a
+   sub-section, not a page title. */
+.exchange-body h1,
+.exchange-body h2,
+.exchange-body h3,
+.exchange-body h4,
+.exchange-body h5,
+.exchange-body h6 {
+  font-family: var(--type-display, var(--type-body));
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink-bench);
+  margin: 18px 0 8px;
+}
+.exchange-body h1 { font-size: 22px; }
+.exchange-body h2 { font-size: 19px; }
+.exchange-body h3 { font-size: 17px; letter-spacing: 0.01em; }
+.exchange-body h4,
+.exchange-body h5,
+.exchange-body h6 { font-size: 16px; color: var(--ink-bench-2); }
+.exchange-body h1:first-child,
+.exchange-body h2:first-child,
+.exchange-body h3:first-child,
+.exchange-body h4:first-child,
+.exchange-body h5:first-child,
+.exchange-body h6:first-child { margin-top: 0; }
+.exchange-body ul,
+.exchange-body ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+.exchange-body ul:last-child,
+.exchange-body ol:last-child { margin-bottom: 0; }
+.exchange-body li { margin: 0 0 4px; }
+.exchange-body li:last-child { margin-bottom: 0; }
+.exchange-body strong { font-weight: 600; color: var(--ink-bench); }
+.exchange-body em { font-style: italic; }
+.exchange-body code {
+  font-family: var(--type-mono);
+  font-size: 0.92em;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.exchange-body pre {
+  font-family: var(--type-mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--bench-rule);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  overflow-x: auto;
+}
+.exchange-body pre:last-child { margin-bottom: 0; }
+.exchange-body pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.exchange-body a {
+  color: var(--hue-bronze);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.exchange-body a:hover { color: var(--ink-bench); }
+/* The streaming caret follows the last paragraph; non-paragraph last
+   children (headings, lists, code blocks) don't carry a caret — that's
+   acceptable since most replies end on a paragraph. */
 .exchange.user .exchange-body {
   font-style: italic;
   font-size: 16.5px;
@@ -757,6 +881,20 @@ html, body {
   border-color: var(--hue-bronze);
   color: var(--hue-bronze);
   background: rgba(160, 130, 59, 0.12);
+}
+/* While a response is streaming, the composer reads as paused — the
+   textarea and send button lose interactivity and dim until the reply
+   settles. */
+.composer textarea:disabled,
+.composer .send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.composer textarea:disabled { background: #2A2E30; }
+.composer .send:disabled:hover {
+  border-color: #5A554F;
+  color: var(--ink-bench-2);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2696,6 +2834,9 @@ body[data-first-run="true"] .first-run { display: flex; }
 
     <!-- Chat -->
     <section class="chat">
+      <div class="chat-header">
+        <button type="button" class="chat-action" data-action="new-chat" title="Clear the conversation and start fresh"><span class="plus">+</span>New chat</button>
+      </div>
       <div class="chat-scroll">
 
         <article class="exchange user">

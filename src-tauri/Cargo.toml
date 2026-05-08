@@ -1,6 +1,6 @@
 [package]
 name = "sensorium"
-version = "0.1.0"
+version = "0.1.1"
 description = "Surrounds an LLM chat with a filter cartography of the model's behaviour"
 edition = "2021"
 rust-version = "1.77"
