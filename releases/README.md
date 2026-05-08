@@ -17,7 +17,7 @@ This folder is committed to git (unlike `dist/` and `src-tauri/target/`, which a
 | `macos-aarch64/` | `sensorium_0.1.1_aarch64.dmg` | ✅ done (4.3 MB) |
 | `macos-x64/` | `sensorium_0.1.1_x64.dmg` | ✅ done (4.6 MB) |
 | `linux-amd64/` | `sensorium_0.1.1_amd64.deb` + `sensorium-0.1.1-amd64.flatpak` | ⏳ pending |
-| `linux-arm64/` | `sensorium_0.1.1_arm64.deb` | ⏳ pending |
+| `linux-arm64/` | `sensorium_0.1.1_arm64.deb` | ✅ done (4.4 MB, `2478b61e...5b7ebd4`) |
 
 ---
 
@@ -64,7 +64,7 @@ cp src-tauri/target/release/bundle/deb/sensorium_0.1.1_arm64.deb releases/linux-
 shasum -a 256 releases/linux-arm64/sensorium_0.1.1_arm64.deb
 ```
 
-### Step 4 — commit and push
+### Step 4 — commit, then push if the host has GitHub auth
 
 ```bash
 git add releases/
@@ -73,6 +73,10 @@ git push
 ```
 
 Replace `<arch>` with `linux-amd64` or `linux-arm64`. Replace `<artefact summary>` with `amd64 .deb + amd64 .flatpak` or `arm64 .deb`.
+
+**Auth-gap caveat (arm64 Parallels VM, observed 8 May 2026):** the arm64 host has no GitHub credential helper and no SSH key registered with GitHub, so `git push` fails with `fatal: could not read Username for 'https://github.com'`. The local commit lands fine; **stop after the commit and report back**. The Mac side picks the commit up via Dropbox-synced `.git` and pushes from there.
+
+If a future session on this host wants autonomous push, configure auth once: install `gh` and run `gh auth login`, or add an SSH key to GitHub and switch the remote with `git remote set-url origin git@github.com:koherarchitecture/sensorium.git`. The x86_64 Linux dev box did not exhibit this gap during the v0.1.0 build session (it had auth pre-configured), but verify with `git push --dry-run` before assuming.
 
 ### Step 5 — confirm in chat
 
