@@ -1,6 +1,6 @@
 {
   "name": "sensorium",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Surrounds an LLM chat with a filter cartography of the model's behaviour.",
   "private": true,
   "type": "module",
