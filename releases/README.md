@@ -14,10 +14,12 @@ This folder is committed to git (unlike `dist/` and `src-tauri/target/`, which a
 
 | Folder | Expected file(s) | State |
 |---|---|---|
-| `macos-aarch64/` | `sensorium_0.1.1_aarch64.dmg` | ✅ done (4.3 MB) |
-| `macos-x64/` | `sensorium_0.1.1_x64.dmg` | ✅ done (4.6 MB) |
-| `linux-amd64/` | `sensorium_0.1.1_amd64.deb` + `sensorium-0.1.1-amd64.flatpak` | ⏳ pending |
+| `macos-aarch64/` | `sensorium_0.1.1_aarch64.dmg` | ✅ done (4.3 MB, `1570b225...23e33a9`) |
+| `macos-x64/` | `sensorium_0.1.1_x64.dmg` | ✅ done (4.6 MB, `5dfd46cb...aec37fd7`) |
+| `linux-amd64/` | `sensorium_0.1.1_amd64.deb` + `sensorium-0.1.1-amd64.flatpak` | ✅ done (4.6 MB `60c508ac...67c4e6659` + 3.3 MB `cd3f014f...92cf8051`) |
 | `linux-arm64/` | `sensorium_0.1.1_arm64.deb` | ✅ done (4.4 MB, `2478b61e...5b7ebd4`) |
+
+**v0.1.1 matrix complete; ready to cut GitHub Release `v0.1.1` and refresh `koher.app/tools/sensorium` download links.**
 
 ---
 
