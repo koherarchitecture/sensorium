@@ -8,18 +8,25 @@ This folder is committed to git (unlike `dist/` and `src-tauri/target/`, which a
 
 ## Current target
 
-**Version:** `0.1.1` (hotfix). Engine bumped to 0.1.1 in `package.json`, `tauri.conf.json`, `src-tauri/Cargo.toml`. Sycophancy flavour version unchanged.
+**Version:** `0.1.1` shipped 9 May 2026 ([release](https://github.com/koherarchitecture/sensorium/releases/tag/v0.1.1)). Next: **v0.1.2** on the `v0.1.2` branch — adds arm64 flatpak parity. Bump engine to 0.1.2 in `package.json`, `tauri.conf.json`, `src-tauri/Cargo.toml` before building. Sycophancy flavour version unchanged.
 
-**Status (8 May 2026 evening):**
+**v0.1.1 status (shipped 9 May 2026):**
 
-| Folder | Expected file(s) | State |
+| Folder | File(s) | State |
 |---|---|---|
 | `macos-aarch64/` | `sensorium_0.1.1_aarch64.dmg` | ✅ done (4.3 MB, `1570b225...23e33a9`) |
 | `macos-x64/` | `sensorium_0.1.1_x64.dmg` | ✅ done (4.6 MB, `5dfd46cb...aec37fd7`) |
 | `linux-amd64/` | `sensorium_0.1.1_amd64.deb` + `sensorium-0.1.1-amd64.flatpak` | ✅ done (4.6 MB `60c508ac...67c4e6659` + 3.3 MB `cd3f014f...92cf8051`) |
 | `linux-arm64/` | `sensorium_0.1.1_arm64.deb` | ✅ done (4.4 MB, `2478b61e...5b7ebd4`) |
 
-**v0.1.1 matrix complete; ready to cut GitHub Release `v0.1.1` and refresh `koher.app/tools/sensorium` download links.**
+**v0.1.2 matrix (in progress on `v0.1.2` branch, earliest cut 22 May 2026):**
+
+| Folder | File(s) | State |
+|---|---|---|
+| `macos-aarch64/` | `sensorium_0.1.2_aarch64.dmg` | ⏳ pending |
+| `macos-x64/` | `sensorium_0.1.2_x64.dmg` | ⏳ pending |
+| `linux-amd64/` | `sensorium_0.1.2_amd64.deb` + `sensorium-0.1.2-amd64.flatpak` | ⏳ pending |
+| `linux-arm64/` | `sensorium_0.1.2_arm64.deb` + `sensorium-0.1.2-arm64.flatpak` (NEW) | ⏳ pending |
 
 ---
 
@@ -62,9 +69,20 @@ shasum -a 256 releases/linux-amd64/sensorium_0.1.1_amd64.deb releases/linux-amd6
 
 ```bash
 ./node_modules/.bin/tauri build --bundles deb
+bash scripts/build-flatpak.sh
 cp src-tauri/target/release/bundle/deb/sensorium_0.1.1_arm64.deb releases/linux-arm64/
-shasum -a 256 releases/linux-arm64/sensorium_0.1.1_arm64.deb
+cp dist/sensorium-0.1.1-arm64.flatpak releases/linux-arm64/
+shasum -a 256 releases/linux-arm64/sensorium_0.1.1_arm64.deb releases/linux-arm64/sensorium-0.1.1-arm64.flatpak
 ```
+
+**One-time prereq for the arm64 host (do this once before the first arm64 flatpak build):** install the arm64 GNOME runtimes from flathub on the VM. `scripts/build-flatpak.sh` reads the host's Debian arch via `dpkg --print-architecture` and produces an arm64 flatpak automatically; the runtimes the build pulls have to be present for arm64.
+
+```bash
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub org.gnome.Platform//49 org.gnome.Sdk//49
+```
+
+If the runtime install fails because flathub doesn't serve that arch on this VM, fall back to building only the .deb (skip the flatpak step) and report back so we can investigate whether to host the arm64 runtime ourselves.
 
 ### Step 4 — commit, then push if the host has GitHub auth
 

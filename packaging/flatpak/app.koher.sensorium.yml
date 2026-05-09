@@ -31,17 +31,19 @@ modules:
     sources:
       # The .deb is produced by `npx tauri build --bundles deb` from the
       # sensorium build root. Path is relative to this manifest file.
-      # NOTE: __VERSION__ and __BUILD_DATE__ are placeholders rendered by
-      # scripts/build-flatpak.sh from package.json at build time. Do not
-      # commit a concrete version here — the script does the substitution
-      # into dist/app.koher.sensorium.rendered.yml before invoking
-      # flatpak-builder. Editing this file with a literal version will
-      # silently desync from package.json on the next release bump.
+      # NOTE: __VERSION__, __ARCH__, and __BUILD_DATE__ are placeholders
+      # rendered by scripts/build-flatpak.sh from package.json + the host
+      # architecture at build time. __ARCH__ is the Debian arch string
+      # (`amd64` or `arm64`), matching what tauri build emits in the .deb
+      # filename. Do not commit concrete values here — the script does the
+      # substitution into packaging/flatpak/app.koher.sensorium.rendered.yml
+      # before invoking flatpak-builder. Editing this file with literals
+      # will silently desync from package.json on the next release bump.
       - type: file
-        path: ../../src-tauri/target/release/bundle/deb/sensorium___VERSION___amd64.deb
+        path: ../../src-tauri/target/release/bundle/deb/sensorium___VERSION_____ARCH__.deb
     build-commands:
       # Extract the Debian package payload.
-      - ar x sensorium___VERSION___amd64.deb
+      - ar x sensorium___VERSION_____ARCH__.deb
       - mkdir -p deb-payload
       - tar -xf data.tar.gz -C deb-payload || tar -xf data.tar.xz -C deb-payload || tar -xf data.tar.zst -C deb-payload
 
