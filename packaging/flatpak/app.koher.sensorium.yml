@@ -31,11 +31,17 @@ modules:
     sources:
       # The .deb is produced by `npx tauri build --bundles deb` from the
       # sensorium build root. Path is relative to this manifest file.
+      # NOTE: __VERSION__ and __BUILD_DATE__ are placeholders rendered by
+      # scripts/build-flatpak.sh from package.json at build time. Do not
+      # commit a concrete version here — the script does the substitution
+      # into dist/app.koher.sensorium.rendered.yml before invoking
+      # flatpak-builder. Editing this file with a literal version will
+      # silently desync from package.json on the next release bump.
       - type: file
-        path: ../../src-tauri/target/release/bundle/deb/sensorium_0.1.0_amd64.deb
+        path: ../../src-tauri/target/release/bundle/deb/sensorium___VERSION___amd64.deb
     build-commands:
       # Extract the Debian package payload.
-      - ar x sensorium_0.1.0_amd64.deb
+      - ar x sensorium___VERSION___amd64.deb
       - mkdir -p deb-payload
       - tar -xf data.tar.gz -C deb-payload || tar -xf data.tar.xz -C deb-payload || tar -xf data.tar.zst -C deb-payload
 
@@ -99,7 +105,7 @@ modules:
           <url type="vcs-browser">https://github.com/koherarchitecture/sensorium</url>
           <content_rating type="oars-1.1"/>
           <releases>
-            <release version="0.1.0" date="2026-06-15"/>
+            <release version="__VERSION__" date="__BUILD_DATE__"/>
           </releases>
         </component>
         METAINFO
