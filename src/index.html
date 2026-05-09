@@ -645,13 +645,180 @@ html, body {
   color: var(--ink-bench-2);
   background: rgba(0, 0, 0, 0.32);
 }
-.chat-action .plus {
+.chat-action .plus,
+.chat-action .bars {
   display: inline-block;
   margin-right: 6px;
   font-weight: 600;
   letter-spacing: 0;
   font-size: 11px;
   line-height: 1;
+}
+.chat-action .bars {
+  font-size: 14px;
+  margin-right: 7px;
+}
+
+/* ── Conversations drawer (v0.1.2) ──────────────────────────────────
+   A left-edge slide-out inside .chat. Hidden by default (translateX
+   off-screen + opacity 0); .is-open transitions it in. The drawer sits
+   above .chat-scroll without unmounting it, so closing snaps the chat
+   back without state loss. */
+.conversations-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(380px, 92vw);
+  z-index: 6;
+  background: #14171A;
+  border-right: 1px solid var(--bench-rule);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-105%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 220ms ease, opacity 220ms ease;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
+}
+.conversations-drawer.is-open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.conversations-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--bench-rule);
+}
+.conversations-title {
+  font-family: var(--type-label, 'IBM Plex Sans', sans-serif);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-bench-2);
+}
+.conversations-close {
+  background: transparent;
+  border: none;
+  color: var(--ink-bench-3);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.12s;
+}
+.conversations-close:hover { color: var(--hue-bronze); }
+
+.conversations-search {
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--bench-rule);
+}
+.conversations-search input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #2A2E30;
+  border: 1px solid #5A554F;
+  border-radius: 4px;
+  color: var(--ink-bench);
+  font-family: var(--type-body);
+  font-size: 14px;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 0.15s, background 0.15s;
+}
+.conversations-search input::placeholder {
+  color: var(--ink-bench-4);
+  font-style: italic;
+}
+.conversations-search input:focus {
+  border-color: var(--hue-bronze);
+  background: #34393B;
+}
+
+.conversations-empty {
+  padding: 20px 18px;
+  font-family: var(--type-body);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-bench-3);
+  line-height: 1.5;
+}
+
+.conversations-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bench-rule) transparent;
+}
+.conversations-list::-webkit-scrollbar { width: 4px; }
+.conversations-list::-webkit-scrollbar-thumb {
+  background: var(--bench-rule);
+  border-radius: 2px;
+}
+
+.conversation-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 2px 0;
+  cursor: pointer;
+  font-family: var(--type-body);
+  color: var(--ink-bench);
+  transition: background 0.12s, border-color 0.12s;
+}
+.conversation-row:hover {
+  background: rgba(160, 130, 59, 0.08);
+  border-color: rgba(160, 130, 59, 0.2);
+}
+.conversation-row.is-active {
+  background: rgba(160, 130, 59, 0.14);
+  border-color: rgba(160, 130, 59, 0.45);
+}
+.conversation-title {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink-bench);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conversation-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-family: var(--type-mono);
+  font-size: 10px;
+  color: var(--ink-bench-4);
+  letter-spacing: 0.04em;
+}
+.conversation-meta .meta-when { color: var(--hue-bronze); }
+.conversation-snippet {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-bench-2);
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.conversation-hit .conversation-meta .meta-role {
+  color: var(--ink-bench-3);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .chat-scroll {
@@ -2835,8 +3002,24 @@ body[data-first-run="true"] .first-run { display: flex; }
     <!-- Chat -->
     <section class="chat">
       <div class="chat-header">
+        <button type="button" class="chat-action chat-action-history" data-action="toggle-conversations" title="Open conversation history (search prior conversations)"><span class="bars" aria-hidden="true">≡</span>History</button>
         <button type="button" class="chat-action" data-action="new-chat" title="Clear the conversation and start fresh"><span class="plus">+</span>New chat</button>
       </div>
+
+      <!-- Conversation history drawer (v0.1.2). Slides in from the left
+           edge of the chat surface; sits above .chat-scroll while open. -->
+      <aside class="conversations-drawer" aria-label="Conversation history">
+        <header class="conversations-header">
+          <span class="conversations-title">Conversations</span>
+          <button type="button" class="conversations-close" aria-label="Close conversations">×</button>
+        </header>
+        <div class="conversations-search">
+          <input type="search" placeholder="Search titles and contents…" autocomplete="off" spellcheck="false"/>
+        </div>
+        <div class="conversations-empty">No saved conversations yet.</div>
+        <div class="conversations-list" role="list"></div>
+      </aside>
+
       <div class="chat-scroll">
 
         <article class="exchange user">

@@ -61,6 +61,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 anyhow = "1"
 
+[dev-dependencies]
+# Temp directory helper for unit tests. Only built when running `cargo test`;
+# never linked into the production binary.
+tempfile = "3"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

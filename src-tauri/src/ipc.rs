@@ -402,5 +402,61 @@ pub async fn clear_workflow() -> Result<(), String> {
     Ok(())
 }
 
+// ── Conversations: append-only persistence + retrieval ────────────
+//
+// All five commands resolve <app_config>/conversations/ at call time via
+// the AppHandle so the right path is used in dev (cwd-relative on
+// Linux), in flatpak (sandboxed ~/.var/app/...), and in macOS (app
+// support dir). They fail soft: errors propagate to the renderer which
+// logs without breaking the chat flow (the chat in renderer state
+// remains the source of truth for the active session).
+
+#[tauri::command]
+pub async fn save_exchange(
+    app: tauri::AppHandle,
+    conversation_id: String,
+    exchange: crate::conversations::StoredExchange,
+) -> Result<(), String> {
+    let dir = config_dir_of(&app).ok_or_else(|| "no app_config_dir".to_string())?;
+    crate::conversations::append_exchange(&dir, &conversation_id, exchange)
+}
+
+#[tauri::command]
+pub async fn list_conversations(
+    app: tauri::AppHandle,
+) -> Result<Vec<crate::conversations::ConversationIndexEntry>, String> {
+    let dir = config_dir_of(&app).ok_or_else(|| "no app_config_dir".to_string())?;
+    crate::conversations::list(&dir)
+}
+
+#[tauri::command]
+pub async fn load_conversation(
+    app: tauri::AppHandle,
+    conversation_id: String,
+) -> Result<Vec<crate::conversations::StoredExchange>, String> {
+    let dir = config_dir_of(&app).ok_or_else(|| "no app_config_dir".to_string())?;
+    crate::conversations::read(&dir, &conversation_id)
+}
+
+#[tauri::command]
+pub async fn search_conversations(
+    app: tauri::AppHandle,
+    query: String,
+) -> Result<Vec<crate::conversations::SearchHit>, String> {
+    let dir = config_dir_of(&app).ok_or_else(|| "no app_config_dir".to_string())?;
+    // Cap at 50 hits to keep the renderer responsive — a longer match
+    // list is almost certainly a too-broad query.
+    crate::conversations::search(&dir, &query, 50)
+}
+
+#[tauri::command]
+pub async fn delete_conversation(
+    app: tauri::AppHandle,
+    conversation_id: String,
+) -> Result<(), String> {
+    let dir = config_dir_of(&app).ok_or_else(|| "no app_config_dir".to_string())?;
+    crate::conversations::delete(&dir, &conversation_id)
+}
+
 #[allow(dead_code)]
 fn _unused(_arc: Arc<()>) {}

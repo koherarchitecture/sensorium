@@ -7,8 +7,16 @@
 // shape is to be agreed on the Rust side; see BUILD-STATUS Open
 // Questions). Until the runner is wired, this module gracefully
 // surfaces errors without breaking the UI.
+//
+// v0.1.2 adds opportunistic persistence: each user and assistant
+// exchange is saved to <app_config>/conversations/<id>.jsonl via the
+// Conversations IPC. The renderer state remains the source of truth
+// for the active session; the persistence layer just records a copy
+// so a future session can replay it via loadConversation(id). All
+// persistence calls fail soft — chat continues if the disk write
+// errors out, and a warning lands in the console.
 
-import { isTauri, Chat } from './ipc.js';
+import { isTauri, Chat, Conversations } from './ipc.js';
 import { renderMarkdown } from './markdown.js';
 
 const STATE = {
@@ -21,9 +29,65 @@ const STATE = {
   sendEl: null,         // cached send button — disabled while streaming
   newChatEl: null,      // "+ New chat" pill — visibility tracks history
   exchangeNum: 0,       // running counter for the meta `.num` label
+  conversationId: null, // current persisted conversation id; null = no
+                        // saved conversation yet (next user send will mint
+                        // a new id and start one)
 };
 
 let _activeModel = 'anthropic/claude-sonnet-4.6';
+
+// v0.1.2 ships only the Sycophancy flavour. Hardcoded here so the
+// persistence layer records something meaningful per exchange. When
+// multi-flavour switching lands, this should read from a settings
+// getter — `Settings.get().active_flavour` or similar.
+const _activeFlavour = 'sycophancy';
+
+// Listeners notified whenever a new conversation is saved or an
+// existing one is updated. The sidebar uses this to refresh its list
+// without polling. A listener receives no arguments — re-fetch via
+// Conversations.list() for the current state.
+const _conversationChangeListeners = new Set();
+export function onConversationChange(handler) {
+  _conversationChangeListeners.add(handler);
+  return () => _conversationChangeListeners.delete(handler);
+}
+function _notifyConversationChange() {
+  for (const h of _conversationChangeListeners) {
+    try { h(); } catch (_) {}
+  }
+}
+
+// Mint a new conversation id. crypto.randomUUID is available in any
+// modern WKWebView/WebKitGTK/WebView2 (and in Chrome for the static
+// preview). Falls back to a timestamp+random hybrid if absent.
+function _newConversationId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Persist one exchange. Returns immediately on non-Tauri (preview mode);
+// otherwise fires a save_exchange IPC and notifies the sidebar. Errors
+// are logged and swallowed.
+async function _saveExchange(role, content) {
+  if (!isTauri || !STATE.conversationId) return;
+  const exchange = {
+    role,
+    content,
+    timestamp_iso: new Date().toISOString(),
+    model: _activeModel,
+    flavour: _activeFlavour,
+  };
+  try {
+    await Conversations.saveExchange(STATE.conversationId, exchange);
+    _notifyConversationChange();
+  } catch (err) {
+    // Persistence failure is non-fatal — chat continues. Log so a
+    // human inspecting the console can see something happened.
+    console.warn('save_exchange failed:', err);
+  }
+}
 
 export async function init({ model } = {}) {
   if (model) _activeModel = model;
@@ -109,8 +173,17 @@ export async function sendMessage(content) {
   STATE.streaming = true;
   setComposerEnabled(false);
 
+  // Mint a conversation id on the first send if none exists yet. This
+  // is when the conversation begins from the persistence layer's POV.
+  if (!STATE.conversationId) {
+    STATE.conversationId = _newConversationId();
+  }
+
   STATE.history.push({ role: 'user', content });
   appendUserMessage(content);
+  // Persist the user exchange immediately. Fires non-blocking; if the
+  // disk write fails the chat still goes through.
+  _saveExchange('user', content);
   beginAssistantMessage();
 
   try {
@@ -130,6 +203,7 @@ export async function sendMessage(content) {
         }
       }
       STATE.history.push({ role: 'assistant', content: finalText || '' });
+      _saveExchange('assistant', finalText || '');
     } else {
       // Preview: synthetic echo so the chat feels alive.
       await new Promise((r) => setTimeout(r, 250));
@@ -140,6 +214,9 @@ export async function sendMessage(content) {
         body.innerHTML = renderMarkdown(reply);
       }
       STATE.history.push({ role: 'assistant', content: reply });
+      // Preview mode also records the exchange — a no-op outside Tauri,
+      // since _saveExchange short-circuits when isTauri is false.
+      _saveExchange('assistant', reply);
     }
   } catch (err) {
     if (STATE.currentAssistantEl) {
@@ -194,6 +271,11 @@ export function clearChat() {
   STATE.exchangeNum = 0;
   STATE.currentAssistantEl = null;
   STATE.currentAssistantBuffer = '';
+  // Drop the persisted-conversation pointer so the next user send mints
+  // a new conversation id (= a new file under <app_config>/conversations/).
+  // The previous conversation's file stays on disk and remains in the
+  // sidebar list — "clear" means "start fresh", not "delete history".
+  STATE.conversationId = null;
   const scroll = document.querySelector('.chat-scroll');
   if (scroll) {
     while (scroll.firstChild) scroll.removeChild(scroll.firstChild);
@@ -201,6 +283,77 @@ export function clearChat() {
   }
   refreshNewChatVisualState();
   focusInput();
+}
+
+// Replace the active chat with a stored conversation. Called by the
+// sidebar when the user clicks a prior conversation. Refuses while
+// streaming so an in-flight reply isn't blown away by a load. Returns
+// the loaded id on success so the caller can update its highlighted-
+// row state.
+export async function loadConversation(conversationId) {
+  if (STATE.streaming) return null;
+  if (!conversationId) return null;
+  let exchanges = [];
+  if (isTauri) {
+    try {
+      exchanges = await Conversations.load(conversationId);
+    } catch (err) {
+      console.warn('load_conversation failed:', err);
+      return null;
+    }
+  }
+
+  // Reset chat state to match the loaded conversation. Don't go through
+  // clearChat() because that would null out conversationId; we need to
+  // set it to the loaded id so subsequent sends append to the same file.
+  STATE.history = [];
+  STATE.exchangeNum = 0;
+  STATE.currentAssistantEl = null;
+  STATE.currentAssistantBuffer = '';
+  STATE.conversationId = conversationId;
+
+  const scroll = document.querySelector('.chat-scroll');
+  if (scroll) {
+    while (scroll.firstChild) scroll.removeChild(scroll.firstChild);
+    scroll.scrollTop = 0;
+  }
+
+  // Replay each stored exchange into the DOM, mirroring the live append
+  // path (so styling, exchange numbers, model labels match what a fresh
+  // session would have produced). Also push into in-memory history so
+  // continuing the conversation sends the full transcript to the model.
+  for (const ex of exchanges) {
+    STATE.history.push({ role: ex.role, content: ex.content });
+    if (ex.role === 'user') {
+      appendUserMessage(ex.content);
+    } else if (ex.role === 'assistant') {
+      // Use a "settled" assistant message — no streaming caret.
+      beginAssistantMessage();
+      const body = STATE.currentAssistantEl
+        ? (STATE.currentAssistantEl.querySelector('.exchange-body') || STATE.currentAssistantEl)
+        : null;
+      if (body) {
+        STATE.currentAssistantBuffer = ex.content;
+        body.innerHTML = renderMarkdown(ex.content);
+      }
+      if (STATE.currentAssistantEl) {
+        STATE.currentAssistantEl.classList.remove('streaming');
+      }
+      STATE.currentAssistantEl = null;
+      STATE.currentAssistantBuffer = '';
+    }
+  }
+  if (scroll) scroll.scrollTop = scroll.scrollHeight;
+  refreshNewChatVisualState();
+  focusInput();
+  return conversationId;
+}
+
+// Read-only getter for the current conversation id. Used by the sidebar
+// to highlight the active row. Returns null if no conversation has been
+// started in this session yet.
+export function currentConversationId() {
+  return STATE.conversationId;
 }
 
 // Pull a short, gutter-friendly speaker label from the active model id.

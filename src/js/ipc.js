@@ -85,3 +85,39 @@ export const Workflow = {
   get: () => invoke('get_workflow'),
   clear: () => invoke('clear_workflow'),
 };
+
+// Conversation history + search (v0.1.2+).
+//
+// Each exchange is recorded with the model and flavour active at the time
+// of sending. Conversations are append-only on disk; the in-memory chat
+// keeps its own copy and is the source of truth for the active session
+// — these IPCs persist a copy and let prior sessions be replayed.
+//
+// All five commands fail soft: callers should wrap in try/catch and log
+// without breaking the chat flow. The persistence layer is opportunistic;
+// the chat remains usable if it fails.
+export const Conversations = {
+  // Append one exchange (role: 'user' | 'assistant') to a conversation.
+  // The conversation is created on first call for a given id.
+  saveExchange: (conversationId, exchange) =>
+    invoke('save_exchange', { conversationId, exchange }),
+
+  // List all stored conversations, sorted most-recent-first.
+  // Each entry is { id, title, started_at_iso, last_at_iso,
+  // exchange_count, flavour, last_model }.
+  list: () => invoke('list_conversations'),
+
+  // Read all exchanges in one conversation, in order. Returns array of
+  // { role, content, timestamp_iso, model, flavour }.
+  load: (conversationId) =>
+    invoke('load_conversation', { conversationId }),
+
+  // Case-insensitive substring search across titles and exchange contents.
+  // Returns array of { conversation_id, conversation_title, exchange_index,
+  // role, snippet }, capped at 50 hits.
+  search: (query) => invoke('search_conversations', { query }),
+
+  // Delete a conversation file and remove its index entry.
+  delete: (conversationId) =>
+    invoke('delete_conversation', { conversationId }),
+};

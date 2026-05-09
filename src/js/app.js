@@ -17,6 +17,7 @@ import * as settingsModal from './settings-modal.js';
 import * as filterPanel from './filter-panel.js';
 import * as categoryVis from './category-vis.js';
 import * as chat from './chat.js';
+import * as sidebar from './sidebar.js';
 import { setOllama, setOpenRouter } from './calibration-strip.js';
 import { isTauri, Settings, Ollama, ApiKey } from './ipc.js';
 
@@ -58,6 +59,12 @@ async function boot() {
     } catch (_) {}
   }
   await chat.init({ model: activeModel });
+
+  // Conversations sidebar — wires the drawer toggle, the search input,
+  // and the listener that auto-refreshes the list when chat.js saves
+  // a new exchange. Must come after chat.init() because sidebar imports
+  // chat.onConversationChange / loadConversation / currentConversationId.
+  await sidebar.init();
 
   // First-run wizard. On completion it hands back the chosen classes
   // (and a Fingerprint, if calibration succeeded) so the panel can

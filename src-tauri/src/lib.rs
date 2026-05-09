@@ -23,6 +23,7 @@ mod rules;
 mod narrator;
 mod workflow;
 mod flavour;
+mod conversations;
 mod ipc;
 
 use std::sync::Arc;
@@ -125,6 +126,13 @@ pub fn run() {
             // Workflow
             ipc::get_workflow,
             ipc::clear_workflow,
+
+            // Conversation history + search
+            ipc::save_exchange,
+            ipc::list_conversations,
+            ipc::load_conversation,
+            ipc::search_conversations,
+            ipc::delete_conversation,
         ])
         .setup(|app| {
             tracing::info!("Sensorium starting up");
