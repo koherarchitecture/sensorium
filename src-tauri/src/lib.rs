@@ -162,9 +162,31 @@ pub fn run() {
             }
 
             // Load API key into AppState if present (keychain or fallback).
-            if let Ok(Some(k)) = keychain::get_openrouter_key(app_config_dir.as_deref()) {
-                *state.openrouter_key.blocking_write() = Some(k);
-            }
+            //
+            // Spawned on the async runtime rather than blocking the setup
+            // callback. macOS pops the keychain unlock prompt the first
+            // time the app reads from the OS keychain on a given session;
+            // doing that synchronously inside setup() blocks the window
+            // from painting, so the user sees the prompt over whatever
+            // was on screen (Finder / another app) and the Sensorium
+            // window appears blank or absent until the prompt is
+            // dismissed. Spawning means setup() returns immediately, the
+            // window paints with its bench-colour body, and only then does
+            // the keychain prompt appear — visibly attached to Sensorium.
+            let handle_for_kc = handle.clone();
+            let app_config_dir_for_kc = app_config_dir.clone();
+            tauri::async_runtime::spawn(async move {
+                match keychain::get_openrouter_key(app_config_dir_for_kc.as_deref()) {
+                    Ok(Some(k)) => {
+                        let state: tauri::State<AppState> = handle_for_kc.state();
+                        *state.openrouter_key.write().await = Some(k);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!("deferred keychain read failed: {e}");
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

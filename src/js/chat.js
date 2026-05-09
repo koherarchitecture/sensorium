@@ -418,13 +418,25 @@ function beginAssistantMessage() {
   article.className = 'exchange model streaming';
   const num = String(STATE.exchangeNum).padStart(2, '0');
   const who = escapeHtml(shortModelLabel(_activeModel));
+  // Body starts with a "thinking…" indicator so there's immediate
+  // visual feedback between Send and the first chunk arriving. The
+  // indicator is replaced wholesale by `body.innerHTML = renderMarkdown(...)`
+  // on the first appendChunkToCurrent call, or by the error path in
+  // sendMessage's catch block if the request fails.
   article.innerHTML = `
     <header class="exchange-meta" title="${escapeHtml(_activeModel)}">
       <span class="num">${num}</span>
       <span class="who">${who}</span>
       <span class="time">${nowHms()}</span>
     </header>
-    <div class="exchange-body"></div>
+    <div class="exchange-body">
+      <p class="thinking-indicator" aria-label="thinking">
+        <span class="label">thinking</span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </p>
+    </div>
   `;
   scroll.appendChild(article);
   scroll.scrollTop = scroll.scrollHeight;

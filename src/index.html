@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background:#2A2F31">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2A2F31">
 <title>Sensorium — v0.1 preview</title>
 
 <!--
@@ -891,42 +892,74 @@ html, body {
 }
 .exchange-body p { margin: 0 0 14px; }
 .exchange-body p:last-child { margin: 0; }
-/* Rendered-markdown elements inside an assistant reply. Sized down from
-   the global heading scale so a `## Subhead` mid-reply reads as a
-   sub-section, not a page title. */
+/* Rendered-markdown elements inside an assistant reply. Headings are
+   intentionally flat — same size and family as body text, just bold —
+   so a model that emits `## Subhead` mid-reply doesn't shout. The
+   structural marker is bold weight, not visual scale. */
 .exchange-body h1,
 .exchange-body h2,
 .exchange-body h3,
 .exchange-body h4,
 .exchange-body h5,
 .exchange-body h6 {
-  font-family: var(--type-display, var(--type-body));
-  font-weight: 500;
-  line-height: 1.3;
+  font-family: var(--type-body);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
   color: var(--ink-bench);
-  margin: 18px 0 8px;
+  margin: 16px 0 6px;
 }
-.exchange-body h1 { font-size: 22px; }
-.exchange-body h2 { font-size: 19px; }
-.exchange-body h3 { font-size: 17px; letter-spacing: 0.01em; }
-.exchange-body h4,
-.exchange-body h5,
-.exchange-body h6 { font-size: 16px; color: var(--ink-bench-2); }
 .exchange-body h1:first-child,
 .exchange-body h2:first-child,
 .exchange-body h3:first-child,
 .exchange-body h4:first-child,
 .exchange-body h5:first-child,
 .exchange-body h6:first-child { margin-top: 0; }
+/* Lists with discreet markers — small terracotta dot tucked just left
+   of the text, no aggressive disc, minimal indent. Keeps a bulleted
+   reply readable as flowing prose with light visual breaks. */
 .exchange-body ul,
 .exchange-body ol {
-  margin: 0 0 14px;
-  padding-left: 22px;
+  list-style: none;
+  margin: 4px 0 14px;
+  padding-left: 0;
 }
 .exchange-body ul:last-child,
 .exchange-body ol:last-child { margin-bottom: 0; }
-.exchange-body li { margin: 0 0 4px; }
+.exchange-body li {
+  position: relative;
+  padding-left: 18px;
+  margin: 0 0 3px;
+  line-height: 1.65;
+}
 .exchange-body li:last-child { margin-bottom: 0; }
+.exchange-body ul > li::before {
+  content: '·';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  color: var(--hue-bronze);
+  font-weight: 700;
+  font-size: 1.4em;
+  line-height: 1.2;
+}
+.exchange-body ol {
+  counter-reset: koher-ol;
+}
+.exchange-body ol > li {
+  counter-increment: koher-ol;
+  padding-left: 26px;
+}
+.exchange-body ol > li::before {
+  content: counter(koher-ol) '.';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--hue-bronze);
+  font-family: var(--type-mono);
+  font-size: 0.85em;
+  line-height: 1.95;
+}
 .exchange-body strong { font-weight: 600; color: var(--ink-bench); }
 .exchange-body em { font-style: italic; }
 .exchange-body code {
@@ -968,7 +1001,10 @@ html, body {
   font-size: 16.5px;
 }
 .exchange.user .exchange-meta .who { color: var(--hue-bronze); }
-.exchange.streaming .exchange-body p:last-child::after {
+/* Streaming caret on the last paragraph — but not on the
+   thinking-indicator placeholder, which already animates its own dots
+   and would otherwise carry a redundant blinking bar after them. */
+.exchange.streaming .exchange-body p:last-child:not(.thinking-indicator)::after {
   content: '▍';
   display: inline-block;
   margin-left: 2px;
@@ -979,6 +1015,39 @@ html, body {
 @keyframes cursor {
   0%, 50% { opacity: 1; }
   50.01%, 100% { opacity: 0; }
+}
+
+/* Thinking indicator — shown in the assistant body between Send and
+   the first chunk arriving. Three pulsing dots after the word
+   "thinking" in the muted body register. Replaced by the rendered
+   markdown as soon as appendChunkToCurrent fires. */
+.thinking-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-bench-3);
+  font-style: italic;
+  font-size: 15px;
+  margin: 0;
+}
+.thinking-indicator .label {
+  letter-spacing: 0.02em;
+}
+.thinking-indicator .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--hue-bronze);
+  display: inline-block;
+  opacity: 0.35;
+  animation: thinking-pulse 1.2s ease-in-out infinite;
+}
+.thinking-indicator .dot:nth-child(2) { animation-delay: 0.18s; }
+.thinking-indicator .dot:nth-child(3) { animation-delay: 0.36s; }
+.thinking-indicator .dot:nth-child(4) { animation-delay: 0.54s; }
+@keyframes thinking-pulse {
+  0%, 70%, 100% { opacity: 0.25; transform: scale(0.85); }
+  35% { opacity: 1; transform: scale(1); }
 }
 
 /* ── Composer ──────────────────────────────────────────────────────── */
@@ -2717,7 +2786,7 @@ body[data-first-run="true"] .first-run { display: flex; }
 </style>
 </head>
 
-<body>
+<body style="background:#2A2F31">
 
 <!-- ────────────────────────── Category icons (sprite) ──────────────────
      Hidden SVG sprite. Each <symbol> is referenced from .row-head via
