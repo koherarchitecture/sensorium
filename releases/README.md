@@ -19,7 +19,7 @@ This folder is committed to git (unlike `dist/` and `src-tauri/target/`, which a
 | `linux-amd64/` | `sensorium_0.1.1_amd64.deb` + `sensorium-0.1.1-amd64.flatpak` | ✅ done (4.6 MB `60c508ac...67c4e6659` + 3.3 MB `cd3f014f...92cf8051`) |
 | `linux-arm64/` | `sensorium_0.1.1_arm64.deb` | ✅ done (4.4 MB, `2478b61e...5b7ebd4`) |
 
-**v0.1.2 matrix (in progress on `v0.1.2` branch, earliest cut 22 May 2026):**
+**v0.1.2 matrix (in progress on `v0.1.2` branch, earliest cut 17 May 2026):**
 
 | Folder | File(s) | State |
 |---|---|---|
