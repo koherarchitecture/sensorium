@@ -1,0 +1,11 @@
+<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Bring your own model</title>
+  <g font-family="IBM Plex Mono, monospace" font-size="9" letter-spacing="0.06em">
+    <text x="14" y="22" fill="#9A8F85">claude</text>
+    <text x="14" y="36" fill="#9A8F85">gpt</text>
+    <text x="14" y="50" fill="#C75B39" font-weight="500">sonnet 4.6</text>
+    <text x="14" y="64" fill="#9A8F85">gemini</text>
+    <text x="14" y="78" fill="#9A8F85">qwen</text>
+  </g>
+  <line x1="14" y1="54" x2="68" y2="54" stroke="#C75B39" stroke-width="1.5"/>
+</svg>

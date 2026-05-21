@@ -4,6 +4,54 @@ A desktop app that maps how a language model handles sycophancy triggers. You ch
 
 Sensorium runs on your machine. It uses your OpenRouter API key for the chat and a narration model. It uses Ollama running locally for response classification. No telemetry, no servers in between.
 
+## Features
+
+<table>
+<tr>
+<td width="33%" align="center" valign="top"><img src="assets/features/01-local-first.svg" width="64" alt=""><br><b>Local-first chat</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/02-byom.svg" width="64" alt=""><br><b>Bring your own model</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/03-cartography.svg" width="64" alt=""><br><b>Filter cartography</b></td>
+</tr>
+<tr>
+<td valign="top">No cloud, no telemetry, no install ping. State stays in your OS user-data directory; the API key in the OS keychain. The only network calls are direct HTTPS to OpenRouter and HTTP loopback to Ollama on your machine.</td>
+<td valign="top">One OpenRouter key, every model. Switch between Claude, GPT-class, Gemini, Llama, Mistral, Qwen from a dropdown in the top bar. The cartography re-reads on the new model with one click.</td>
+<td valign="top">A five-row map showing how the active model handles each sycophancy axis. Each row carries a verdict, an expandable probe-and-response trace, and the five-dial cluster. Updated on calibration, never on every chat turn.</td>
+</tr>
+
+<tr>
+<td width="33%" align="center" valign="top"><img src="assets/features/04-dials.svg" width="64" alt=""><br><b>Five-dial cluster</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/05-verdicts.svg" width="64" alt=""><br><b>Three-state verdicts</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/06-curtain.svg" width="64" alt=""><br><b>Behind the Curtain</b></td>
+</tr>
+<tr>
+<td valign="top">Per probe, code extracts five signals from the response — capitulation depth, hedge density, affirmation count, concession depth, refusal-pattern fit. All deterministic; no ML at the rules layer. Reproducible from the same input.</td>
+<td valign="top">HOLDS · SOFTENS · FOLDS. Three categories per axis; no numeric score, no rating out of ten. Pseudo-precision is a verdict shape Sensorium refuses.</td>
+<td valign="top">Every probe exposes its Q → R → L trace — the classifier output the qualifier produced, the deterministic rule the result triggered, the prompt the narrator received. Any verdict is auditable back to the inputs that produced it.</td>
+</tr>
+
+<tr>
+<td width="33%" align="center" valign="top"><img src="assets/features/07-cues.svg" width="64" alt=""><br><b>Suggested-tone cues</b><br><sub><i>NEW · v0.1.3</i></sub></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/08-history.svg" width="64" alt=""><br><b>Chat history + search</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/09-cost.svg" width="64" alt=""><br><b>Cost transparency</b></td>
+</tr>
+<tr>
+<td valign="top">A row of system-selected coaching cues appears above the composer once a calibration has run. Up to three cues from a five-candidate vocabulary, drawn from the recent fingerprint. Read-only — the system selects them; you read them as coaching for your next message.</td>
+<td valign="top">Conversations persist across launches. A sidebar lists prior conversations; search runs across both titles and contents. Each exchange records the flavour and the model used at the time, so old conversations replay with their original context intact.</td>
+<td valign="top">Per-calibration cost is shown before any refresh runs. Four narration modes (raw · economical · functional · robust) act as the cost lever — roughly $0.08 to $0.31 per refresh against Claude Sonnet 4.6. Chat costs are per-token at the model's published rate.</td>
+</tr>
+
+<tr>
+<td width="33%" align="center" valign="top"><img src="assets/features/10-platform.svg" width="64" alt=""><br><b>Cross-platform</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/11-open-source.svg" width="64" alt=""><br><b>Open source · AGPL-3.0</b></td>
+<td width="33%" align="center" valign="top"><img src="assets/features/12-flavours.svg" width="64" alt=""><br><b>Flavour architecture</b></td>
+</tr>
+<tr>
+<td valign="top">Native builds for macOS (Apple Silicon + Intel) and Linux (amd64 + arm64). Linux ships as both <code>.deb</code> and <code>.flatpak</code>. Tauri-based, so the binary stays under 5 MB per arch.</td>
+<td valign="top">Every line of source on GitHub. Audit any pipeline step, fork for your own use, modify and redistribute freely. The AGPL clause only triggers for organisations running modified versions as hosted network services.</td>
+<td valign="top">Sensorium is a base engine; Sycophancy is the first flavour. Each flavour is a JSON config shipping its own probe bank, dials, and narration prompts. Cop-out is queued next; future flavours land as drop-in JSON without engine changes.</td>
+</tr>
+</table>
+
 ## What Sensorium does
 
 Sensorium runs a small calibrated battery of probes against the chat model you've chosen. Each probe targets one of five sycophancy axes:
@@ -61,10 +109,10 @@ Five minutes start to finish if Ollama is already running.
 
 ### macOS
 
-Download the `.dmg` for your processor:
+Download the `.dmg` for your processor from the [latest release](https://github.com/koherarchitecture/sensorium/releases/latest):
 
-- Apple Silicon (M1/M2/M3/M4): `sensorium_0.1.0_aarch64.dmg`
-- Intel: `sensorium_0.1.0_x64.dmg`
+- Apple Silicon (M1/M2/M3/M4): `sensorium_<version>_aarch64.dmg`
+- Intel: `sensorium_<version>_x64.dmg`
 
 Mount the `.dmg`, drag Sensorium.app into your `/Applications/` folder.
 
@@ -82,16 +130,20 @@ After the first launch, no warning appears. The source is open; you can read eve
 
 ### Linux (.deb — Ubuntu / Debian)
 
+Download `sensorium_<version>_amd64.deb` (or `_arm64.deb`) from the [latest release](https://github.com/koherarchitecture/sensorium/releases/latest), then:
+
 ```bash
-sudo apt install ./sensorium_0.1.0_amd64.deb
+sudo apt install ./sensorium_<version>_amd64.deb
 ```
 
 `apt` will pull WebKitGTK 4.1 and libsecret-1 if they're not already present. Sensorium then appears in your Activities / application menu.
 
 ### Linux (.flatpak — any distribution with flatpak)
 
+Download `sensorium-<version>-amd64.flatpak` (or `-arm64.flatpak`) from the [latest release](https://github.com/koherarchitecture/sensorium/releases/latest), then:
+
 ```bash
-flatpak install --user --bundle sensorium-0.1.0.flatpak
+flatpak install --user --bundle sensorium-<version>-amd64.flatpak
 flatpak run app.koher.sensorium
 ```
 
