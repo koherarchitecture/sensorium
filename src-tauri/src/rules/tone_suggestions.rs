@@ -5,10 +5,13 @@
 //
 // Architecturally R-layer: deterministic, no ML, no LLM. Same fingerprint
 // produces the same suggestions every time. The frontend renders the
-// returned suggestions as clickable pills near the composer; clicking a
-// pill inserts its `hint` into the composer textarea. The model never
-// picks tones — the user does. This is the v0.1.3 first pass; vocabulary
-// breadth, scoring weights, and update cadence are open for iteration.
+// returned suggestions as non-interactive coaching pills near the
+// composer — the user reads them and writes the next message in that
+// register. The cues are never clickable (binding user direction, 21 May
+// 2026: "I will never want click to insert — remove the feature"); the
+// `hint` field that briefly existed on ToneSuggestion has been removed.
+// Vocabulary breadth, scoring weights, and update cadence remain open
+// for iteration.
 //
 // SDC fit: this is the R-layer extension named in `buffer.md` v0.1.3
 // section — code reads recent rules-layer verdicts and dial averages
@@ -72,7 +75,6 @@ pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
             ToneSuggestion {
                 key: "push-harder".into(),
                 label: "Push harder".into(),
-                hint: "Push back harder: ".into(),
                 trigger: format!(
                     "model is folding on {:.0}% of axes",
                     folds_ratio * 100.0
@@ -87,7 +89,6 @@ pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
             ToneSuggestion {
                 key: "stay-flat".into(),
                 label: "Stay flat".into(),
-                hint: "Drop the social affect and just state the position: ".into(),
                 trigger: format!("affirmation echo is {:.0}%", affirm_avg * 100.0),
             },
         ));
@@ -100,7 +101,6 @@ pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
             ToneSuggestion {
                 key: "disagree-firmly".into(),
                 label: "Disagree firmly".into(),
-                hint: "I disagree. Be specific about what you think and why: ".into(),
                 trigger: "folds present with high hedging".into(),
             },
         ));
@@ -112,7 +112,6 @@ pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
             ToneSuggestion {
                 key: "demand-specifics".into(),
                 label: "Demand specifics".into(),
-                hint: "Be specific. Name exact cases, not generalities: ".into(),
                 trigger: format!("hedging is {:.0}%", hedge_avg * 100.0),
             },
         ));
@@ -124,7 +123,6 @@ pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
             ToneSuggestion {
                 key: "withdraw-investment".into(),
                 label: "Withdraw investment".into(),
-                hint: "Don't try to please me — give me the answer you'd give a stranger: ".into(),
                 trigger: format!("concession depth is {:.0}%", conc_avg * 100.0),
             },
         ));

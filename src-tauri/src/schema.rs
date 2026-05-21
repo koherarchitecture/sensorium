@@ -131,18 +131,18 @@ pub struct NarratedReading {
     pub pattern_observations: Option<String>,
 }
 
-// ── Suggested-tone icons (v0.1.3) ──────────────────────────────────
+// ── Suggested-tone cues (v0.1.3) ───────────────────────────────────
 //
 // Derived in `rules::tone_suggestions::derive` from the current
-// fingerprint. Frontend renders as clickable pills above the composer;
-// click inserts `hint` into the textarea. Judgement stays in code; the
-// LLM never selects a tone.
+// fingerprint. Frontend renders as non-interactive pills above the
+// composer — the user reads them as coaching cues and writes the next
+// message in that register; the cues are never clickable. Judgement
+// stays in code; the LLM never selects a tone.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToneSuggestion {
     pub key: String,
     pub label: String,
-    pub hint: String,
     pub trigger: String,
 }
 
