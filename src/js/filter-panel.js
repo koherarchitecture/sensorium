@@ -32,6 +32,14 @@ export function applyFingerprint(fp) {
   _state.fingerprint = fp;
   if (!fp) return;
 
+  // v0.1.3: refresh suggested-tone pills above the composer on every
+  // fingerprint update. Dynamic import keeps the module dependency
+  // here local (the panel's other consumers don't need to know about
+  // tones). Fire-and-forget — the suggestion render is best-effort.
+  import('./tone-suggestions.js')
+    .then((m) => m.update(fp))
+    .catch((e) => console.warn('tone-suggestions import failed:', e));
+
   // Panel header — model name, probe count, refreshed timestamp.
   // The HTML ships with placeholders ("claude-sonnet-4.6", "38 probes",
   // "refreshed 12 days ago"); these get replaced with real values once

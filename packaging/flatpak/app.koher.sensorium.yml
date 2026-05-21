@@ -50,6 +50,19 @@ modules:
       # Install the binary to /app/bin (flatpak's standard prefix).
       - install -Dm755 deb-payload/usr/bin/sensorium /app/bin/sensorium
 
+      # Copy the lib tree (bundled resources — flavour configs, etc.).
+      # Tauri's `bundle.resources` config in `tauri.conf.json` puts these
+      # at `usr/lib/sensorium/` inside the .deb (and prefixes any
+      # `../`-relative entry with `_up_/` for collision protection).
+      # The Tauri binary resolves `app.path().resource_dir()` to
+      # `/app/lib/sensorium/` at runtime inside the flatpak sandbox, so
+      # the tree must be preserved under `/app/lib/`. Without this line
+      # the flatpak ships without any bundled resources at all — the
+      # binary launches, but every code path that reads from the
+      # resource dir fails with "bundle file missing" (calibration is
+      # the load-bearing example: see flavour::ensure_flavour_in_user_data).
+      - mkdir -p /app/lib && cp -r deb-payload/usr/lib/sensorium /app/lib/sensorium
+
       # Install the .desktop file. The deb ships it as sensorium.desktop
       # (because productName is "sensorium"), and the file's Name= is
       # already "Sensorium" via the custom desktop template at

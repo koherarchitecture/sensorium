@@ -458,5 +458,22 @@ pub async fn delete_conversation(
     crate::conversations::delete(&dir, &conversation_id)
 }
 
+// ── Suggested-tone icons (v0.1.3) ──────────────────────────────────
+//
+// Pure, stateless function: takes the current Fingerprint and returns
+// up to 3 ToneSuggestions selected from a fixed vocabulary based on
+// dial averages and verdict distribution. R-layer; no LLM, no async.
+//
+// The frontend invokes this after each calibration / refresh and after
+// loading a saved conversation; renders the result as clickable pills
+// above the composer.
+
+#[tauri::command]
+pub fn suggested_tones(
+    fingerprint: crate::schema::Fingerprint,
+) -> Vec<crate::schema::ToneSuggestion> {
+    crate::rules::tone_suggestions::derive(&fingerprint)
+}
+
 #[allow(dead_code)]
 fn _unused(_arc: Arc<()>) {}

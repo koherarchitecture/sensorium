@@ -336,6 +336,17 @@ async function runCalibrationStep() {
 
   try {
     if (isTauri) {
+      // Seed the bundled flavour config into user-data BEFORE the run.
+      // Installed builds (.deb / .flatpak / .dmg) have no working-dir
+      // `flavours/` folder, so the engine returns "no flavour loaded"
+      // unless this seed has already happened. (Previously seeding ran
+      // only inside the FINISH handler — which made the first calibration
+      // always fail.)
+      try {
+        await window.__TAURI__.core.invoke('seed_active_flavour');
+      } catch (e) {
+        console.warn('flavour seed before calibration failed:', e);
+      }
       const fp = await Calibration.run();
       _state.fingerprint = fp;
     } else {

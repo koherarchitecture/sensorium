@@ -18,6 +18,7 @@ import * as filterPanel from './filter-panel.js';
 import * as categoryVis from './category-vis.js';
 import * as chat from './chat.js';
 import * as sidebar from './sidebar.js';
+import * as toneSuggestions from './tone-suggestions.js';
 import { setOllama, setOpenRouter } from './calibration-strip.js';
 import { isTauri, Settings, Ollama, ApiKey } from './ipc.js';
 
@@ -26,6 +27,7 @@ async function boot() {
   rows.init();
   probesModal.init();
   filterPanel.init();
+  toneSuggestions.init();
   // Category icons + per-row verdict strip + per-probe word bar.
   // Renders from the static HTML preview content so visualisations
   // are visible before any backend call lands. updateFromFingerprint

@@ -13,7 +13,10 @@ set -euo pipefail
 # Resolve paths
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SENSORIUM_ROOT="$(cd "${HERE}/.." && pwd)"
-KOHER_ROOT="$(cd "${SENSORIUM_ROOT}/../../.." && pwd)"
+# Build folder moved 13 May 2026 from tools-scratch/02-sensorium/sensorium/
+# (4 levels deep from koher root) to tools-release/sensorium/ (2 levels deep).
+# Adjust relative depth accordingly.
+KOHER_ROOT="$(cd "${SENSORIUM_ROOT}/../.." && pwd)"
 
 SRC="${KOHER_ROOT}/ui-system/koher-ui.css"
 DST="${SENSORIUM_ROOT}/src/assets/koher-ui.css"

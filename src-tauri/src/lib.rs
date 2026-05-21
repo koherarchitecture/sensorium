@@ -54,23 +54,15 @@ pub fn run() {
         )
         .init();
 
-    // Attempt to load the default flavour at startup. The actual paths
-    // (user-data, bundle-resource) are resolved inside the loader; the
-    // dev fallback (./flavours/<slug>.json) covers `cargo tauri dev`.
-    let initial_flavour = match flavour::load_flavour(
-        flavour::DEFAULT_FLAVOUR_SLUG,
-        None,
-        None,
-    ) {
-        Ok(cfg) => {
-            tracing::info!("loaded flavour '{}' v{}", cfg.slug, cfg.flavour_version);
-            Some(cfg)
-        }
-        Err(e) => {
-            tracing::error!("failed to load default flavour: {}", e);
-            None
-        }
-    };
+    // Flavour is loaded in the .setup() callback below, where the
+    // AppHandle is available and we can resolve the real user-data and
+    // bundle-resource paths via app.path(). Calling load_flavour here
+    // with None, None as earlier releases did is unsafe — it relies on
+    // dev/compile-time fallbacks that don't exist on user machines and
+    // silently returns None on installed builds (the symptom being a
+    // "no flavour loaded" error at first calibration). Initialise to
+    // None; setup populates state.flavour before any IPC handler fires.
+    let initial_flavour: Option<schema::FlavourConfig> = None;
 
     // Note: env-var key seeding (SENSORIUM_DEV_KEY) is moved into the
     // setup callback below so we have access to the resolved app config
@@ -120,6 +112,9 @@ pub fn run() {
             // Probe set transparency
             ipc::get_probe_set,
 
+            // Suggested-tone icons (v0.1.3)
+            ipc::suggested_tones,
+
             // Flavour management
             ipc::seed_active_flavour,
 
@@ -142,6 +137,39 @@ pub fn run() {
             let app_config_dir = handle.path().app_config_dir().ok();
             let state: tauri::State<AppState> = handle.state();
             *state.settings.blocking_write() = settings::load_from_disk(&handle);
+
+            // Seed + load the active flavour synchronously so state.flavour
+            // is populated before any IPC handler fires. The eager load
+            // earlier in run() used to pass None, None and relied on
+            // dev/compile-time fallbacks inside load_flavour — those don't
+            // exist on user machines, so installed builds without a
+            // working-dir or build-machine source-tree path silently fell
+            // through to None, producing "no flavour loaded" at first
+            // calibration. Resolving real paths here via app.path() fixes
+            // the load on every installed build.
+            if let Some(udir) = app_config_dir.as_deref() {
+                if let Ok(rdir) = handle.path().resource_dir() {
+                    let slug = state.settings.blocking_read().active_flavour.clone();
+                    if let Err(e) = flavour::ensure_flavour_in_user_data(&slug, udir, &rdir) {
+                        tracing::warn!("setup: ensure_flavour_in_user_data failed: {e}");
+                    }
+                    match flavour::load_flavour(&slug, Some(udir), Some(&rdir)) {
+                        Ok(cfg) => {
+                            tracing::info!(
+                                "setup: loaded flavour '{}' v{}",
+                                cfg.slug,
+                                cfg.flavour_version
+                            );
+                            *state.flavour.blocking_write() = Some(cfg);
+                        }
+                        Err(e) => tracing::error!("setup: load_flavour failed: {e}"),
+                    }
+                } else {
+                    tracing::warn!("setup: resource_dir unavailable; flavour load deferred to wizard");
+                }
+            } else {
+                tracing::warn!("setup: app_config_dir unavailable; flavour load deferred to wizard");
+            }
 
             // Optional dev/CI seeding via SENSORIUM_DEV_KEY. Only writes
             // when no key is already stored. Tries the OS keychain first;

@@ -41,8 +41,22 @@ pub fn load_flavour(
             return load_from_path(&p);
         }
     }
-    // 2. bundle-resource path
+    // 2. bundle-resource path. Tauri prefixes resources that use `..`
+    // in `tauri.conf.json > bundle.resources` with `_up_/` in the
+    // bundle (path-collision protection — see Tauri's resource bundling
+    // logic). Since our config specifies `"../flavours/*.json"`, the
+    // actual on-disk path inside an installed .deb / .flatpak / .dmg is
+    // `<resource_dir>/_up_/flavours/<slug>.json`. Try that first; fall
+    // back to the plain `flavours/` path for any future bundling layout
+    // that doesn't traverse a parent directory.
     if let Some(bdir) = bundle_resource_dir {
+        let p_up = bdir
+            .join("_up_")
+            .join("flavours")
+            .join(format!("{slug}.json"));
+        if p_up.exists() {
+            return load_from_path(&p_up);
+        }
         let p = bdir.join("flavours").join(format!("{slug}.json"));
         if p.exists() {
             return load_from_path(&p);
@@ -131,9 +145,20 @@ pub fn ensure_flavour_in_user_data(
     if user_path.exists() {
         return Ok(());
     }
-    let bundle_path = bundle_resource_dir
+    // Same `_up_/` mangling as in load_flavour above — Tauri's bundle
+    // logic prefixes resources that use `..` in the config. Check the
+    // `_up_/flavours/` path first, fall back to plain `flavours/`.
+    let bundle_path_up = bundle_resource_dir
+        .join("_up_")
         .join("flavours")
         .join(format!("{slug}.json"));
+    let bundle_path = if bundle_path_up.exists() {
+        bundle_path_up
+    } else {
+        bundle_resource_dir
+            .join("flavours")
+            .join(format!("{slug}.json"))
+    };
     if !bundle_path.exists() {
         anyhow::bail!(
             "cannot seed flavour '{slug}' — bundle file missing at {}",

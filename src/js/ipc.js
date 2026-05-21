@@ -68,6 +68,13 @@ export const Calibration = {
   fullRefresh: () => invoke('run_full_refresh'),
 };
 
+// Suggested-tone icons (v0.1.3) — pure derivation from the current
+// Fingerprint. The Rust IPC is stateless: pass the fingerprint, get
+// back up to 3 ToneSuggestions. Renderer is responsible for caching.
+export const Tones = {
+  suggest: (fingerprint) => invoke('suggested_tones', { fingerprint }),
+};
+
 export const Chat = {
   // messages: array of { role, content } turns. The renderer keeps
   // history; Rust side accepts the full transcript per call (see

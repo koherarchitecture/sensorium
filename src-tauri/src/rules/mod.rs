@@ -8,3 +8,4 @@
 pub mod classify_response;
 pub mod refusal_rules;
 pub mod dials;
+pub mod tone_suggestions;

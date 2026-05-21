@@ -65,6 +65,37 @@ export function init({ onChanged } = {}) {
     try { await ApiKey.clear(); } catch (_) {}
   });
 
+  // ── Flavour install buttons: not-yet-implemented notice ─────────
+  // The HTML carries three install affordances (From URL, From file,
+  // Browse registry) that v0.1 does not yet implement — the flavour
+  // pipeline ships Sycophancy bundled and a future release will add
+  // user-installable flavours. Until then, surface a clear inline
+  // notice rather than leaving the buttons dead.
+  const installUrlBtn = document.getElementById('settings-flavour-install-url');
+  const installFileBtn = document.getElementById('settings-flavour-install-file');
+  const browseBtn = document.getElementById('settings-flavour-browse');
+
+  const showFlavourInstallNotice = () => {
+    const host = installUrlBtn && installUrlBtn.parentElement;
+    if (!host) return;
+    let notice = host.parentElement.querySelector('.fr-install-notice');
+    if (!notice) {
+      notice = document.createElement('span');
+      notice.className = 'label-sub fr-install-notice';
+      notice.style.display = 'block';
+      notice.style.marginTop = '8px';
+      notice.style.color = 'var(--accent, #c75b39)';
+      host.parentElement.appendChild(notice);
+    }
+    notice.textContent =
+      'Flavour installation is not yet available in this release. ' +
+      'Sycophancy ships bundled; future versions will add From URL, From file, and Browse registry.';
+  };
+
+  if (installUrlBtn) installUrlBtn.addEventListener('click', showFlavourInstallNotice);
+  if (installFileBtn) installFileBtn.addEventListener('click', showFlavourInstallNotice);
+  if (browseBtn) browseBtn.addEventListener('click', showFlavourInstallNotice);
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.getAttribute('data-open') === 'true') close();
   });

@@ -1065,6 +1065,43 @@ html, body {
   gap: 14px;
   align-items: stretch;
 }
+
+/* v0.1.3 — suggested-tone cues above the composer-row. Hidden until
+   the first calibration produces a fingerprint, then shows up to 3
+   short-label cues derived from the rules layer. NON-INTERACTIVE:
+   the system selects which cues to surface based on conversation
+   flow; the user reads them as coaching and writes in that tone. No
+   click, no hover-to-act. The hover tooltip (title=) reveals the
+   trigger reason for the curious. */
+.tone-suggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  min-height: 0;
+}
+.tone-suggestions[data-state="cold"] {
+  display: none;
+}
+.tone-cue {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  /* Render in the system-selected state by default (no hover
+     graduation). The system has already picked these as relevant;
+     visually they're "on". */
+  background: rgba(160, 130, 59, 0.18);
+  border: 1px solid var(--hue-bronze);
+  border-radius: 14px;
+  color: var(--hue-bronze);
+  font-family: var(--type-label);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: default;
+  user-select: none;
+}
 .composer textarea {
   min-height: 50px;
   max-height: 140px;
@@ -3140,6 +3177,18 @@ body[data-first-run="true"] .first-run { display: flex; }
       </div>
 
       <footer class="composer">
+        <!-- v0.1.3: suggested-tone cues.
+             Hidden by default (data-state="cold"); becomes a row of up
+             to 3 non-interactive cues after the first calibration
+             completes. Each cue is system-selected based on the
+             conversation flow — the user reads it as coaching, picks
+             up the tone, and writes the next message in that register.
+             No click. Hover tooltip (title=) reveals the trigger
+             reason for the curious. Judgement stays in code; the LLM
+             never selects a cue. See src/js/tone-suggestions.js and
+             the Rust rules module tone_suggestions.rs. -->
+        <div class="tone-suggestions" id="tone-suggestions" data-state="cold"
+             aria-label="Tone the conversation flow suggests for your next message"></div>
         <div class="composer-row">
           <textarea placeholder="continue the conversation…" rows="1"></textarea>
           <button class="send" type="button" data-action="send">Send</button>
