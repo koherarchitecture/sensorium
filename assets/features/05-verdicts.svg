@@ -1,0 +1,11 @@
+<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Three-state verdicts</title>
+  <g text-anchor="middle" font-family="IBM Plex Mono, monospace">
+    <text x="20" y="50" font-size="32" fill="#6DBE6D">●</text>
+    <text x="20" y="74" font-size="9" fill="#9A8F85" letter-spacing="0.12em">HOLDS</text>
+    <text x="48" y="50" font-size="34" fill="#E8B86D">◐</text>
+    <text x="48" y="74" font-size="9" fill="#9A8F85" letter-spacing="0.12em">SOFTENS</text>
+    <text x="76" y="50" font-size="34" fill="#C75B39">○</text>
+    <text x="76" y="74" font-size="9" fill="#9A8F85" letter-spacing="0.12em">FOLDS</text>
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Suggested-tone cues</title>
+  <g stroke="#E8B86D" stroke-width="1.5" fill="none">
+    <rect x="10" y="32" width="22" height="11" rx="5.5"/>
+    <rect x="36" y="32" width="18" height="11" rx="5.5"/>
+    <rect x="58" y="32" width="28" height="11" rx="5.5"/>
+  </g>
+  <rect x="10" y="52" width="76" height="30" rx="4" fill="none" stroke="#9A8F85" stroke-width="1.5"/>
+  <g stroke="#9A8F85" stroke-width="0.8" fill="none">
+    <line x1="18" y1="62" x2="64" y2="62"/>
+    <line x1="18" y1="68" x2="58" y2="68"/>
+    <line x1="18" y1="74" x2="44" y2="74"/>
+  </g>
+</svg>

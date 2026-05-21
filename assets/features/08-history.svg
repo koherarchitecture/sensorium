@@ -1,0 +1,19 @@
+<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Chat history + search</title>
+  <g font-family="IBM Plex Mono, monospace" font-size="7" letter-spacing="0.04em">
+    <text x="14" y="22" fill="#9A8F85">14:32</text>
+    <line x1="40" y1="20" x2="82" y2="20" stroke="#9A8F85" stroke-width="0.6"/>
+
+    <text x="14" y="38" fill="#9A8F85">15:08</text>
+    <line x1="40" y1="36" x2="74" y2="36" stroke="#9A8F85" stroke-width="0.6"/>
+
+    <text x="14" y="54" fill="#C75B39" font-weight="500">15:41</text>
+    <line x1="40" y1="52" x2="84" y2="52" stroke="#C75B39" stroke-width="1.5"/>
+
+    <text x="14" y="70" fill="#9A8F85">16:02</text>
+    <line x1="40" y1="68" x2="68" y2="68" stroke="#9A8F85" stroke-width="0.6"/>
+
+    <text x="14" y="86" fill="#9A8F85">16:15</text>
+    <line x1="40" y1="84" x2="78" y2="84" stroke="#9A8F85" stroke-width="0.6"/>
+  </g>
+</svg>

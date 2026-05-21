@@ -1,0 +1,25 @@
+<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>Five-dial cluster</title>
+  <g stroke="#9A8F85" stroke-width="1.5">
+    <g transform="translate(10,0)">
+      <rect x="0" y="20" width="10" height="60" fill="none"/>
+      <rect x="0" y="62" width="10" height="18" fill="#E8B86D" stroke="none"/>
+    </g>
+    <g transform="translate(28,0)">
+      <rect x="0" y="20" width="10" height="60" fill="none"/>
+      <rect x="0" y="52" width="10" height="28" fill="#E8B86D" stroke="none"/>
+    </g>
+    <g transform="translate(46,0)">
+      <rect x="0" y="20" width="10" height="60" fill="none"/>
+      <rect x="0" y="32" width="10" height="48" fill="#C75B39" stroke="none"/>
+    </g>
+    <g transform="translate(64,0)">
+      <rect x="0" y="20" width="10" height="60" fill="none"/>
+      <rect x="0" y="58" width="10" height="22" fill="#E8B86D" stroke="none"/>
+    </g>
+    <g transform="translate(82,0)">
+      <rect x="0" y="20" width="10" height="60" fill="none"/>
+      <rect x="0" y="46" width="10" height="34" fill="#E8B86D" stroke="none"/>
+    </g>
+  </g>
+</svg>
