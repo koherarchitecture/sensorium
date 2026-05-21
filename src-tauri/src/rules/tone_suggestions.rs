@@ -1,17 +1,25 @@
 // Stage 2 — Suggested tones for the composer.
 //
-// Reads the current fingerprint (per-class verdicts + per-probe dials)
-// and selects up to 3 tone suggestions from a fixed vocabulary of 5.
+// Always returns 3 tone suggestions whenever a fingerprint with probes
+// exists. The cues are brainstorming prompts — model-agnostic moves the
+// user can take in their next message — combined with sycophancy-pattern
+// cues that fire when threshold-driven signals appear in the fingerprint.
+//
+// Design intent (binding user direction, 21 May 2026 late evening):
+// "tone suggestions should always work with any model. it is for
+// brainstorming." Cues are for prompting creative next moves, not for
+// warning about patterns. Threshold cues take priority when they fire;
+// brainstorming cues fill the remaining slots so the row is always
+// populated with three useful prompts.
 //
 // Architecturally R-layer: deterministic, no ML, no LLM. Same fingerprint
-// produces the same suggestions every time. The frontend renders the
-// returned suggestions as non-interactive coaching pills near the
+// produces the same suggestions every time (the brainstorm rotation seed
+// is derived from the fingerprint's dial sums). The frontend renders
+// the returned suggestions as non-interactive coaching pills near the
 // composer — the user reads them and writes the next message in that
 // register. The cues are never clickable (binding user direction, 21 May
 // 2026: "I will never want click to insert — remove the feature"); the
 // `hint` field that briefly existed on ToneSuggestion has been removed.
-// Vocabulary breadth, scoring weights, and update cadence remain open
-// for iteration.
 //
 // SDC fit: this is the R-layer extension named in `buffer.md` v0.1.3
 // section — code reads recent rules-layer verdicts and dial averages
@@ -19,6 +27,25 @@
 // LLM never selects a tone.
 
 use crate::schema::{Fingerprint, ToneSuggestion, TopicVerdict};
+
+// Brainstorming pool — model-agnostic prompts that suggest different
+// angles to take the conversation. Always available; not gated on any
+// threshold. The system rotates through these based on a fingerprint-
+// derived seed so the same state shows the same suggestions (no flicker
+// between renders), but different conversations get different moves.
+// (key, label, prompt-as-trigger-text)
+const BRAINSTORM_POOL: &[(&str, &str, &str)] = &[
+    ("question-frame",   "Question the frame",    "step back from the question being asked"),
+    ("try-opposite",     "Try the opposite",      "argue the inverse and see what holds"),
+    ("ask-example",      "Ask for an example",    "request a concrete case"),
+    ("slow-down",        "Slow it down",          "ask for step-by-step reasoning"),
+    ("add-constraint",   "Add a constraint",      "narrow scope with a specific limit"),
+    ("change-register",  "Change register",       "shift audience or domain"),
+    ("name-stakes",      "Name the stakes",       "ask what's at risk in this answer"),
+    ("ask-method",       "Ask how it knows",      "question the reasoning path"),
+    ("surface-tension",  "Surface a tension",     "ask what cuts against this answer"),
+    ("test-edge",        "Test an edge case",     "push the answer to where it might fail"),
+];
 
 pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
     if fingerprint.classes.is_empty() {
@@ -128,10 +155,48 @@ pub fn derive(fingerprint: &Fingerprint) -> Vec<ToneSuggestion> {
         ));
     }
 
-    // Sort by descending score; return at most 3. Deduplication by key
-    // is implicit — each branch above produces at most one entry.
+    // Sort threshold-driven candidates by descending score; take top 3.
+    // These are pattern-driven cues — they fire when the model exhibits
+    // sycophancy behaviours. Multiple may fire from the same fingerprint.
     candidates.sort_by(|a, b| {
         b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
     });
-    candidates.into_iter().take(3).map(|(_, t)| t).collect()
+    let mut result: Vec<ToneSuggestion> = candidates
+        .into_iter()
+        .take(3)
+        .map(|(_, t)| t)
+        .collect();
+
+    // Fill remaining slots from the brainstorm pool so the row always
+    // carries 3 cues whenever a real fingerprint is available — not
+    // dependent on threshold crossings. The pool rotation seed is a
+    // simple integer hash of the dial sums; same fingerprint → same
+    // brainstorm picks (deterministic, no flicker).
+    if result.len() < 3 {
+        let seed = ((capit_sum * 1000.0
+            + hedge_sum * 100.0
+            + affirm_sum * 10.0
+            + conc_sum) as i64)
+            .unsigned_abs() as usize;
+        let start = seed % BRAINSTORM_POOL.len();
+        for offset in 0..BRAINSTORM_POOL.len() {
+            if result.len() >= 3 {
+                break;
+            }
+            let i = (start + offset) % BRAINSTORM_POOL.len();
+            let (key, label, prompt) = BRAINSTORM_POOL[i];
+            // Threshold keys never collide with brainstorm keys (different
+            // vocabularies), but check defensively anyway.
+            if result.iter().any(|s| s.key == key) {
+                continue;
+            }
+            result.push(ToneSuggestion {
+                key: key.into(),
+                label: label.into(),
+                trigger: prompt.into(),
+            });
+        }
+    }
+
+    result
 }

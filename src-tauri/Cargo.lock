@@ -3580,7 +3580,7 @@ dependencies = [
 
 [[package]]
 name = "sensorium"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "chacha20poly1305",
