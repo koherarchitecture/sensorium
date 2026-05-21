@@ -43,18 +43,20 @@ export function init({ onChanged } = {}) {
 
   if (save) save.addEventListener('click', async () => {
     const probeSelection = readProbePickers();
+    const activeModel = readChatModel();
 
     if (isTauri) {
       try {
         const s = await Settings.get();
         s.probe_selection = probeSelection;
+        if (activeModel) s.active_model = activeModel;
         await Settings.update(s);
       } catch (err) {
         console.warn('settings save failed:', err);
       }
     }
 
-    if (_onChanged) _onChanged({ probeSelection });
+    if (_onChanged) _onChanged({ probeSelection, activeModel });
     close();
   });
 
@@ -105,11 +107,11 @@ export function init({ onChanged } = {}) {
 
 async function syncFromSource() {
   const host = document.getElementById('settings-probe-pickers');
-  if (!host) return;
 
   // Pull the flavour's probe bank + the user's current selection.
   let bank = null;
   let selection = {};
+  let activeModel = null;
   if (isTauri) {
     try {
       bank = await Probes.getSet();
@@ -119,10 +121,29 @@ async function syncFromSource() {
     try {
       const s = await Settings.get();
       selection = s.probe_selection || {};
+      activeModel = s.active_model || null;
     } catch (err) {
       console.warn('Settings.get failed:', err);
     }
   }
+
+  // Pre-select the chat model dropdown to match the saved active_model.
+  // Defensive: if the saved id isn't one of the built-in options (anyone
+  // who edits preferences.json directly, or a future flavour preset), add
+  // it as a synthetic option so the modal truthfully reflects state.
+  const modelSelect = document.getElementById('settings-chat-model');
+  if (modelSelect && activeModel) {
+    const known = Array.from(modelSelect.options).some((o) => o.value === activeModel || o.text === activeModel);
+    if (!known) {
+      const opt = document.createElement('option');
+      opt.value = activeModel;
+      opt.textContent = activeModel;
+      modelSelect.insertBefore(opt, modelSelect.firstChild);
+    }
+    modelSelect.value = activeModel;
+  }
+
+  if (!host) return;
 
   if (!bank || !Array.isArray(bank.classes)) {
     host.innerHTML = '<p class="label-sub" style="margin: 0;">Probe bank unavailable — install a flavour first.</p>';
@@ -184,6 +205,12 @@ function readProbePickers() {
     if (axis) out[axis] = value;
   });
   return out;
+}
+
+function readChatModel() {
+  const sel = document.getElementById('settings-chat-model');
+  if (!sel) return null;
+  return sel.value || null;
 }
 
 function escapeHtml(s) {

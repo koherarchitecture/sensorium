@@ -45,8 +45,12 @@ async function boot() {
 
   // Settings modal — opens from titlebar, persists through IPC.
   settingsModal.init({
-    onChanged: ({ enabledClasses }) => {
+    onChanged: ({ enabledClasses, activeModel: nextModel }) => {
       filterPanel.setEnabledClasses(enabledClasses);
+      if (nextModel) {
+        chat.setModel(nextModel);
+        updateHeaderModel(nextModel);
+      }
     },
   });
 
@@ -60,6 +64,7 @@ async function boot() {
       if (s && s.active_model) activeModel = s.active_model;
     } catch (_) {}
   }
+  updateHeaderModel(activeModel);
   await chat.init({ model: activeModel });
 
   // Conversations sidebar — wires the drawer toggle, the search input,
@@ -105,6 +110,18 @@ async function boot() {
     // stopped, key cleared) become visible without a manual reload.
     setInterval(refreshStripState, 30 * 1000);
   }
+}
+
+// Mirror the saved active_model into the titlebar `.model-pick` badge.
+// The header ships with hardcoded "anthropic / claude-sonnet-4.6" — this
+// rewrites it from settings so the badge tells the truth about which
+// model the chat module will actually send to. The display format inserts
+// spaces around the slash to match the header typography.
+function updateHeaderModel(model) {
+  if (!model) return;
+  const el = document.getElementById('header-model-value');
+  if (!el) return;
+  el.textContent = String(model).replace('/', ' / ');
 }
 
 async function refreshStripState() {

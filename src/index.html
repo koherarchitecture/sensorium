@@ -2983,7 +2983,7 @@ body[data-first-run="true"] .first-run { display: flex; }
     <div style="display: flex; align-items: center;">
       <button class="model-pick" type="button" aria-label="Choose model">
         <span class="label">Model</span>
-        <span class="value">anthropic / claude-sonnet-4.6</span>
+        <span class="value" id="header-model-value">anthropic / claude-sonnet-4.6</span>
         <span class="caret">▾</span>
       </button>
       <button class="settings-btn" id="settings-btn" type="button" aria-label="Settings" title="Settings">
@@ -3729,7 +3729,7 @@ body[data-first-run="true"] .first-run { display: flex; }
               <span class="label-sub">any model exposed by OpenRouter</span>
             </span>
             <span class="value">
-              <select class="settings-select">
+              <select class="settings-select" id="settings-chat-model">
                 <option>anthropic/claude-sonnet-4.6</option>
                 <option>anthropic/claude-haiku-4.5</option>
                 <option>anthropic/claude-opus-4.7</option>
