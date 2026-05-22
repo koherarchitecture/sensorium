@@ -22,7 +22,19 @@ SRC="${KOHER_ROOT}/ui-system/koher-ui.css"
 DST="${SENSORIUM_ROOT}/src/assets/koher-ui.css"
 
 if [ ! -f "${SRC}" ]; then
+  # Source not reachable. This is the expected case on CI runners
+  # (GitHub Actions checks out only the sensorium repo, not the koher
+  # monorepo, so /ui-system/ doesn't exist relative to this script).
+  # From v0.1.7 onward src/assets/koher-ui.css is vendored into the
+  # repo — if that vendored copy is present, trust it and exit zero.
+  # Otherwise fail loudly so a misconfigured local dev environment
+  # gets caught early.
+  if [ -f "${DST}" ]; then
+    echo "ℹ source ${SRC} not reachable; vendored copy at ${DST} will be used as-is (expected on CI)"
+    exit 0
+  fi
   echo "✗ source not found: ${SRC}"
+  echo "  and no vendored fallback at: ${DST}"
   exit 1
 fi
 
