@@ -213,6 +213,86 @@ pub struct FlavourConfig {
     pub dials: Vec<DialDef>,
     pub narration_prompts: NarrationPrompts,
     pub calibration: CalibrationDefaults,
+    /// v0.1.7 — declares how this flavour's verdicts map to the split /
+    /// conflated sides of the canon's split-ratio, plus optional dial-
+    /// breakdown metadata for the UI. `None` means the flavour does not
+    /// support the sensed-split register (legacy flavours; pre-v0.1.7).
+    #[serde(default)]
+    pub split_ratio_mapping: Option<SplitRatioMapping>,
+}
+
+// ── Split-ratio mapping (per flavour) ──────────────────────────────
+//
+// Declared in the flavour JSON. Tells the engine how to aggregate the
+// flavour's verdicts into a sensed-split N:M value. Per the canon's
+// seven-rule pattern (rule 2), the arithmetic is transparent: a reader
+// of the source can reconstruct any sensed-split value by hand from the
+// flavour weights + the fingerprint's verdicts.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SplitRatioMapping {
+    /// Maps each verdict slug (lowercase: "holds" / "softens" / "folds" /
+    /// "mixed") to a side ("split" / "conflated" / "neutral") + weight.
+    pub verdict_weights: std::collections::HashMap<String, VerdictWeight>,
+    /// Optional dial-breakdown metadata — which dials signal which side
+    /// when high. Surfaces in the sensed-split badge's per-dial breakdown
+    /// row. Empty / absent → no per-dial breakdown shown.
+    #[serde(default)]
+    pub dial_breakdown: Vec<DialBreakdownDef>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerdictWeight {
+    /// "split" | "conflated" | "neutral"
+    pub side: String,
+    pub weight: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DialBreakdownDef {
+    /// Field name on `DialValues` (capit / hedge / affirm / conc / fit).
+    pub slug: String,
+    pub label: String,
+    /// Which side this dial signals when high — "split" | "conflated".
+    pub side: String,
+}
+
+// ── Sensed split (the instrument's reading) ────────────────────────
+//
+// Per canon split-ratio.md v1.1: the sensed split is the deterministic
+// reading the instrument produces from a Fingerprint. It is *not* the
+// canon's self-rated split ratio — the two are distinct registers
+// (canon rules 5 + 7). The UI must always label this output "sensed
+// split" and never "your split ratio" / "the split ratio".
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SensedSplit {
+    /// Held side on the canon's 1..=9 scale.
+    pub held: u8,
+    /// Conflated side; held + conflated == 10.
+    pub conflated: u8,
+    /// "N:M" rendering for the UI.
+    pub ratio: String,
+    /// "held-leaning" | "balanced" | "conflated-leaning".
+    pub direction: String,
+    /// One-line summary of the verdict aggregation that produced this
+    /// reading. Format: "3 holds · 1 softens · 1 folds · 0 mixed".
+    pub verdict_summary: String,
+    /// Per-dial breakdown (empty if the flavour declared no breakdown).
+    pub per_dial: Vec<SensedDialReading>,
+    /// Confidence band — width in steps on the 10-point scale (pre-dev
+    /// notes §5.2 working preference (a)).
+    pub band: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SensedDialReading {
+    pub slug: String,
+    pub label: String,
+    /// 0..=1 — the dial value averaged across all probes.
+    pub value: f64,
+    /// "split" | "conflated" — which side this dial signals when high.
+    pub side: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -516,6 +516,216 @@ html, body {
   color: var(--hue-refusal);
 }
 
+/* Sensed-split badge in filter-panel (v0.1.7).
+   The instrument's reading surface. Distinct from any self-rated badge
+   per canon rule 5. */
+.sensed-split-badge {
+  display: none;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--paper-rule-2);
+  border-radius: 3px;
+  background: rgba(232, 184, 109, 0.06);
+  font-family: var(--type-body);
+}
+.sensed-split-badge[data-state="visible"] { display: block; }
+.sensed-split-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.sensed-split-title {
+  font-family: var(--type-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--hue-bronze, #C75B39);
+}
+.sensed-split-sub {
+  font-family: var(--type-body);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-paper-2);
+}
+.sensed-split-ratio {
+  margin-left: auto;
+  font-family: var(--type-mono);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink-paper-1);
+  letter-spacing: 0.02em;
+}
+.sensed-split-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.sensed-split-anchor {
+  font-family: var(--type-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-paper-3);
+  flex: 0 0 auto;
+}
+.sensed-split-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 6px;
+  background: var(--paper-rule-2);
+  border-radius: 3px;
+}
+.sensed-split-marker {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--hue-bronze, #C75B39);
+  border: 2px solid var(--paper-bg, #F7F3ED);
+  transition: left 0.4s ease;
+}
+.sensed-split-target {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1.5px dashed var(--ink-paper-2);
+  transition: left 0.3s ease;
+}
+.sensed-split-meta {
+  display: flex;
+  gap: 14px;
+  font-family: var(--type-mono);
+  font-size: 11.5px;
+  color: var(--ink-paper-2);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.sensed-split-direction { font-style: italic; }
+.sensed-split-band { color: var(--ink-paper-3); }
+.sensed-split-summary { color: var(--ink-paper-3); }
+.sensed-split-dials {
+  margin: 6px 0 6px;
+  font-family: var(--type-body);
+  font-size: 12.5px;
+  color: var(--ink-paper-2);
+}
+.sensed-split-dials summary {
+  cursor: pointer;
+  font-style: italic;
+  color: var(--ink-paper-3);
+  list-style: none;
+  padding-left: 16px;
+  position: relative;
+}
+.sensed-split-dials summary::-webkit-details-marker { display: none; }
+.sensed-split-dials summary::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  font-family: var(--type-mono);
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.sensed-split-dials[open] summary::before { transform: rotate(90deg); }
+.sensed-split-dial-list {
+  margin: 8px 0 0 16px;
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  column-gap: 10px;
+  row-gap: 4px;
+}
+.sensed-split-dial-list dt {
+  font-family: var(--type-mono);
+  font-size: 11px;
+  color: var(--ink-paper-2);
+}
+.sensed-split-dial-list .dial-track {
+  position: relative;
+  align-self: center;
+  height: 3px;
+  background: var(--paper-rule-2);
+  border-radius: 2px;
+}
+.sensed-split-dial-list .dial-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--ink-paper-2);
+  border-radius: 2px;
+  opacity: 0.6;
+}
+.sensed-split-dial-list .dial-value {
+  font-family: var(--type-mono);
+  font-size: 10.5px;
+  color: var(--ink-paper-3);
+  text-align: right;
+}
+.sensed-split-help {
+  margin: 4px 0 0;
+  font-family: var(--type-body);
+  font-style: italic;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-paper-3);
+}
+
+/* Target-ratio control inside settings (v0.1.7). */
+.settings-target-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--type-body);
+}
+.settings-target-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 160px;
+  height: 4px;
+  background: var(--paper-rule-2);
+  border-radius: 2px;
+  outline: none;
+}
+.settings-target-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent, #C75B39);
+  border: 2px solid var(--paper-bg, #F7F3ED);
+  cursor: pointer;
+}
+.settings-target-slider::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent, #C75B39);
+  border: 2px solid var(--paper-bg, #F7F3ED);
+  cursor: pointer;
+}
+.settings-target-value {
+  font-family: var(--type-mono);
+  font-size: 14px;
+  color: var(--ink-paper-1);
+  min-width: 36px;
+  text-align: center;
+}
+.settings-target-tag {
+  font-family: var(--type-body);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--ink-paper-2);
+}
+
 .settings-status {
   font-family: var(--type-mono);
   font-size: 11px;
@@ -2495,6 +2705,7 @@ body[data-first-run="true"] .first-run { display: flex; }
 .fr-step { display: none; }
 .first-run-card[data-step="apikey"]    .fr-step[data-fr-step="apikey"],
 .first-run-card[data-step="ollama"]    .fr-step[data-fr-step="ollama"],
+.first-run-card[data-step="target"]    .fr-step[data-fr-step="target"],
 .first-run-card[data-step="calibrate"] .fr-step[data-fr-step="calibrate"] {
   display: block;
 }
@@ -2617,6 +2828,72 @@ body[data-first-run="true"] .first-run { display: flex; }
   color: var(--ink-paper-3);
   font-style: italic;
   font-weight: 400;
+}
+
+/* Target-ratio step controls (v0.1.7).
+   Per canon rule 5: vocabulary is "target ratio", never "your split ratio". */
+.fr-target-ratio {
+  margin: 18px 36px 0;
+  font-family: var(--type-body);
+}
+.fr-target-scale {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.fr-target-anchor {
+  font-family: var(--type-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-paper-2);
+  flex: 0 0 auto;
+}
+.fr-target-slider {
+  flex: 1 1 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--paper-rule-2);
+  border-radius: 2px;
+  outline: none;
+}
+.fr-target-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #C75B39);
+  border: 2px solid var(--paper-bg, #F7F3ED);
+  cursor: pointer;
+}
+.fr-target-slider::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent, #C75B39);
+  border: 2px solid var(--paper-bg, #F7F3ED);
+  cursor: pointer;
+}
+.fr-target-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.fr-target-value {
+  font-family: var(--type-mono);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--ink-paper-1);
+  letter-spacing: 0.02em;
+}
+.fr-target-tag {
+  font-family: var(--type-body);
+  font-style: italic;
+  font-size: 13.5px;
+  color: var(--ink-paper-2);
 }
 
 .fr-cmd {
@@ -3212,13 +3489,14 @@ body[data-first-run="true"] .first-run { display: flex; }
       <ol class="fr-steps" aria-label="Setup steps">
         <li class="fr-step-dot" data-step="apikey"    data-state="current">API key</li>
         <li class="fr-step-dot" data-step="ollama"    data-state="pending">Local classifier</li>
+        <li class="fr-step-dot" data-step="target"    data-state="pending">Target ratio</li>
         <li class="fr-step-dot" data-step="calibrate" data-state="pending">First calibration</li>
       </ol>
 
       <!-- Step 1: API key -->
       <section class="fr-step" data-fr-step="apikey">
         <header class="fr-head">
-          <div class="fr-eyebrow">First-run setup · 1 of 3</div>
+          <div class="fr-eyebrow">First-run setup · 1 of 4</div>
           <h1 class="fr-title">OpenRouter API key</h1>
           <p class="fr-intro">
             Sensorium uses OpenRouter for chat and narration. Paste your key below; it
@@ -3246,7 +3524,7 @@ body[data-first-run="true"] .first-run { display: flex; }
       <!-- Step 2: Ollama detection -->
       <section class="fr-step" data-fr-step="ollama">
         <header class="fr-head">
-          <div class="fr-eyebrow">First-run setup · 2 of 3</div>
+          <div class="fr-eyebrow">First-run setup · 2 of 4</div>
           <h1 class="fr-title">Local classifier (Ollama)</h1>
           <p class="fr-intro">
             Sensorium runs a small local model to classify probe responses — the
@@ -3292,10 +3570,57 @@ body[data-first-run="true"] .first-run { display: flex; }
         </footer>
       </section>
 
-      <!-- Step 3: First calibration -->
+      <!-- Step 3: Target ratio
+           The user defines a goal for the conversation; the tool senses
+           the model independently and coaches toward this target. The
+           UI never calls this "your split ratio" — that phrase belongs
+           to the self-rated register (canon rule 5). -->
+      <section class="fr-step" data-fr-step="target">
+        <header class="fr-head">
+          <div class="fr-eyebrow">First-run setup · 3 of 4</div>
+          <h1 class="fr-title">Set your target ratio</h1>
+          <p class="fr-intro">
+            Pick the proportion you want your conversations with the model to sit at —
+            held on the left (the model resists your framing pressure), conflated on
+            the right (the model folds toward whatever you say). Sensorium will sense
+            how the conversation is going and surface cues that help you work toward
+            this target. You can change it any time in Settings.
+          </p>
+        </header>
+
+        <div class="fr-target-ratio">
+          <div class="fr-target-scale" aria-hidden="true">
+            <span class="fr-target-anchor">held</span>
+            <input class="fr-target-slider" type="range"
+                   id="fr-target-slider"
+                   min="1" max="9" step="1" value="7"
+                   aria-label="Target ratio: held side from 1 to 9" />
+            <span class="fr-target-anchor">conflated</span>
+          </div>
+          <div class="fr-target-readout">
+            <span class="fr-target-value" id="fr-target-value">7:3</span>
+            <span class="fr-target-tag" id="fr-target-tag">held-leaning</span>
+          </div>
+          <p class="fr-input-help">
+            The instrument reads the model independently — this is a target you work
+            toward, not a score the tool assigns to you.
+          </p>
+        </div>
+
+        <p class="fr-status" id="fr-target-status" data-state="pending"></p>
+
+        <footer class="fr-foot">
+          <span class="fr-counter">adjustable in Settings · default 7:3</span>
+          <div class="fr-actions">
+            <button class="fr-btn-primary" type="button" id="fr-target-continue">Continue ▸</button>
+          </div>
+        </footer>
+      </section>
+
+      <!-- Step 4: First calibration -->
       <section class="fr-step" data-fr-step="calibrate">
         <header class="fr-head">
-          <div class="fr-eyebrow">First-run setup · 3 of 3</div>
+          <div class="fr-eyebrow">First-run setup · 4 of 4</div>
           <h1 class="fr-title">First calibration</h1>
           <p class="fr-intro">
             Sensorium is sending probes to the model now and classifying the
@@ -3427,6 +3752,48 @@ body[data-first-run="true"] .first-run { display: flex; }
             <span>english</span>
             <span class="pip"></span>
             <span>not yet calibrated</span>
+          </div>
+
+          <!-- Sensed-split badge (v0.1.7).
+               The instrument's reading of where the conversation sits on
+               the canon's split / conflated axis. Canon rule 5: this is
+               labelled "sensed split", never "the split ratio" / "your
+               split ratio" — those phrases belong to the self-rated
+               register an instrument cannot occupy.
+               Hidden until a fingerprint arrives that supports the
+               sensed-split register (flavour must declare a
+               split_ratio_mapping). -->
+          <div class="sensed-split-badge" id="sensed-split-badge" data-state="hidden">
+            <div class="sensed-split-head">
+              <span class="sensed-split-title">SENSED</span>
+              <span class="sensed-split-sub">sensed split</span>
+              <span class="sensed-split-ratio" id="sensed-split-ratio">—:—</span>
+            </div>
+            <div class="sensed-split-bar" aria-hidden="true">
+              <span class="sensed-split-anchor">held</span>
+              <div class="sensed-split-track">
+                <div class="sensed-split-marker" id="sensed-split-marker" style="left: 50%;"></div>
+                <div class="sensed-split-target" id="sensed-split-target" style="left: 70%;"
+                     title="your target ratio"></div>
+              </div>
+              <span class="sensed-split-anchor">conflated</span>
+            </div>
+            <div class="sensed-split-meta">
+              <span class="sensed-split-direction" id="sensed-split-direction">—</span>
+              <span class="sensed-split-band" id="sensed-split-band">band —</span>
+              <span class="sensed-split-summary" id="sensed-split-summary">—</span>
+            </div>
+            <details class="sensed-split-dials" id="sensed-split-dials">
+              <summary>per-dial breakdown</summary>
+              <dl class="sensed-split-dial-list" id="sensed-split-dial-list">
+                <!-- populated by filter-panel.js -->
+              </dl>
+            </details>
+            <p class="sensed-split-help">
+              The instrument reads the model on its own terms. The marker shows
+              the instrument's reading; the dot shows your target. Coaching cues
+              read the gap between them.
+            </p>
           </div>
 
           <div class="mode-bar">
@@ -4044,6 +4411,59 @@ body[data-first-run="true"] .first-run { display: flex; }
               (planted falsehood, pressure reversal, mediocre praise, contradiction validation,
               certainty validation). Switch flavour at the top of this panel to change the scope.
             </p>
+          </div>
+        </section>
+
+        <!-- Publish artefact (v0.1.7).
+             Self-rated split-ratio badge entry. This is the canon's
+             self-rated register — the user reads their own artefact
+             and declares N:M. The instrument never auto-fills this
+             from the sensed reading (canon rule 7). -->
+        <section class="settings-section">
+          <h3 class="settings-section-label">Publish artefact</h3>
+          <div class="settings-row">
+            <span class="label">
+              Declare your split ratio
+              <span class="label-sub">opens the self-rated badge entry — produces an embeddable SVG</span>
+            </span>
+            <span class="value">
+              <button class="settings-pill-action" type="button" id="settings-publish-badge-btn">Declare ▸</button>
+            </span>
+          </div>
+        </section>
+
+        <!-- Target ratio (v0.1.7).
+             Canon rule 5: the label says "Target ratio", never "your
+             split ratio". The user defines a target and works toward
+             it; the instrument senses the model independently. -->
+        <section class="settings-section">
+          <h3 class="settings-section-label">Target ratio</h3>
+          <div class="settings-row">
+            <span class="label">
+              Goal for your conversations
+              <span class="label-sub">held on the left, conflated on the right — coaching cues work toward this</span>
+            </span>
+            <span class="value">
+              <span class="settings-target-control">
+                <input class="settings-target-slider" type="range"
+                       id="settings-target-slider"
+                       min="1" max="9" step="1" value="7"
+                       aria-label="Target ratio: held side from 1 to 9" />
+                <span class="settings-target-value" id="settings-target-value">7:3</span>
+                <span class="settings-target-tag" id="settings-target-tag">held-leaning</span>
+              </span>
+            </span>
+          </div>
+          <div class="settings-row">
+            <span class="label">
+              Independence note
+              <span class="label-sub">doesn't affect what the instrument senses — the reading is independent of the target</span>
+            </span>
+            <span class="value">
+              <span style="font-family: var(--type-body); font-style: italic; font-size: 13px; color: var(--ink-paper-3); line-height: 1.5;">
+                The instrument reads the model on its own terms. The target shapes coaching, not sensing.
+              </span>
+            </span>
           </div>
         </section>
 

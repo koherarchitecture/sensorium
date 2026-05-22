@@ -21,6 +21,7 @@ import * as sidebar from './sidebar.js';
 import * as toneSuggestions from './tone-suggestions.js';
 import * as modelPick from './model-pick.js';
 import * as usageLine from './usage-line.js';
+import * as badgeExport from './badge-export.js';
 import { setOllama, setOpenRouter } from './calibration-strip.js';
 import { isTauri, Settings, Ollama, ApiKey } from './ipc.js';
 
@@ -31,6 +32,9 @@ async function boot() {
   filterPanel.init();
   toneSuggestions.init();
   usageLine.init();
+  // v0.1.7 — self-rated split-ratio badge entry. Wires the Settings →
+  // Publish artefact button; modal is built lazily on first open.
+  badgeExport.init();
   // Category icons + per-row verdict strip + per-probe word bar.
   // Renders from the static HTML preview content so visualisations
   // are visible before any backend call lands. updateFromFingerprint

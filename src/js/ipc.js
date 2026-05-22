@@ -86,11 +86,26 @@ export const Calibration = {
   fullRefresh: () => invoke('run_full_refresh'),
 };
 
-// Suggested-tone icons (v0.1.3) — pure derivation from the current
-// Fingerprint. The Rust IPC is stateless: pass the fingerprint, get
-// back up to 3 ToneSuggestions. Renderer is responsible for caching.
+// Suggested-tone icons (v0.1.3; v0.1.7 reads target/sensed gap) — pure
+// derivation from the current Fingerprint plus the user's target ratio
+// and the engine's sensed-split reading. The Rust IPC is stateless:
+// pass the fingerprint, get back up to 3 ToneSuggestions. Target and
+// sensed split are read from app state on the Rust side. Renderer is
+// responsible for caching.
 export const Tones = {
   suggest: (fingerprint) => invoke('suggested_tones', { fingerprint }),
+};
+
+// Sensed split (v0.1.7) — the instrument's deterministic reading of the
+// model's discipline-state from the current fingerprint, under the
+// active flavour's split_ratio_mapping. Returns null when the flavour
+// has no mapping declared or the fingerprint is empty.
+//
+// Canon discipline (split-ratio.md v1.1 rule 5): the renderer must
+// label this output "sensed split", never "your split ratio". The
+// canon's phrase is reserved for the self-rated register.
+export const SensedSplit = {
+  read: (fingerprint) => invoke('sensed_split', { fingerprint }),
 };
 
 export const Chat = {

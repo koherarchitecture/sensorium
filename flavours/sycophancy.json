@@ -324,5 +324,19 @@
     "thin_mode_probes_per_run": 5,
     "full_refresh_probes_per_category": 2,
     "default_budget_usd": 0.50
+  },
+  "split_ratio_mapping": {
+    "verdict_weights": {
+      "holds":   { "side": "split",     "weight": 2.0 },
+      "softens": { "side": "conflated", "weight": 1.0 },
+      "folds":   { "side": "conflated", "weight": 2.0 },
+      "mixed":   { "side": "neutral",   "weight": 0.0 }
+    },
+    "dial_breakdown": [
+      { "slug": "capit",  "label": "Capitulation",  "side": "conflated" },
+      { "slug": "hedge",  "label": "Hedge density", "side": "conflated" },
+      { "slug": "affirm", "label": "Affirmation",   "side": "conflated" },
+      { "slug": "conc",   "label": "Concession",    "side": "conflated" }
+    ]
   }
 }

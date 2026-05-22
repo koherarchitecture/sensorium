@@ -113,8 +113,11 @@ pub fn run() {
             // Probe set transparency
             ipc::get_probe_set,
 
-            // Suggested-tone icons (v0.1.3)
+            // Suggested-tone icons (v0.1.3; v0.1.7 reads target/sensed gap)
             ipc::suggested_tones,
+
+            // Sensed split (v0.1.7)
+            ipc::sensed_split,
 
             // Flavour management
             ipc::seed_active_flavour,

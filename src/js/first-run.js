@@ -2,11 +2,17 @@
 //
 // The wizard runs once on first launch and gates panel functionality
 // until Settings::first_run_complete is true. v0.1 (sycophancy flavour)
-// has three steps:
+// has four steps:
 //
 //   1. apikey      — OpenRouter API key entry → set_api_key
 //   2. ollama      — system info, recommended model, daemon detection
-//   3. calibrate   — first calibration; hands off the populated
+//   3. target      — user defines a target ratio they want conversations
+//                    to sit at; persisted as Settings::target_split_held
+//                    (v0.1.7). The vocabulary is "target ratio"; the UI
+//                    never calls this "your split ratio" — that phrase
+//                    belongs to the self-rated register an instrument
+//                    cannot occupy (canon rule 5).
+//   4. calibrate   — first calibration; hands off the populated
 //                    Fingerprint to filter-panel.js
 //
 // What the engine probes is determined by the active flavour
@@ -23,15 +29,17 @@
 // also exposed via the panel's "refresh" affordance.
 
 import { isTauri, NotInTauri, ApiKey, SystemSetup, Ollama, Settings, Calibration } from './ipc.js';
+import { getTargetSplitHeld, setTargetSplitHeld, formatRatio, directionTag } from './target-ratio.js';
 
 const FR_KEY = 'koher.sensorium.firstRunComplete';
 
-const STEPS = ['apikey', 'ollama', 'calibrate'];
+const STEPS = ['apikey', 'ollama', 'target', 'calibrate'];
 
 let _state = {
   step: 'apikey',
   apiKeySet: false,
   ollamaReady: false,
+  targetHeld: 7,
   fingerprint: null,
 };
 
@@ -74,6 +82,7 @@ function goToStep(step) {
 
   // Step-specific entry hooks
   if (step === 'ollama') refreshOllamaPanel();
+  if (step === 'target') refreshTargetPanel();
   if (step === 'calibrate') runCalibrationStep();
 }
 
@@ -338,7 +347,85 @@ async function startPull() {
   }
 }
 
-// ── Step 3: First calibration ───────────────────────────────────────
+// ── Step 3: Target ratio ───────────────────────────────────────────
+//
+// The user defines a target — the proportion they want conversations to
+// sit at. The instrument senses the model independently; the target is
+// the *goal* coaching cues work toward in later iterations of v0.1.7.
+//
+// Vocabulary discipline (canon rule 5): never label this "your split
+// ratio". The phrase "split ratio" is reserved for the practitioner's
+// self-read of their own published artefact — a register an instrument
+// cannot occupy. Here, "target ratio" is the noun and "work toward" is
+// the verb.
+
+async function refreshTargetPanel() {
+  const slider = document.getElementById('fr-target-slider');
+  const valueEl = document.getElementById('fr-target-value');
+  const tagEl = document.getElementById('fr-target-tag');
+
+  if (!slider) return;
+
+  // Load the persisted value (preferences.json via IPC; falls back to
+  // localStorage in browser preview).
+  let held = await getTargetSplitHeld();
+  if (!Number.isFinite(held) || held < 1 || held > 9) held = 7;
+  _state.targetHeld = held;
+
+  slider.value = String(held);
+  if (valueEl) valueEl.textContent = formatRatio(held);
+  if (tagEl) tagEl.textContent = directionTag(held);
+}
+
+function wireTargetStep() {
+  const slider = document.getElementById('fr-target-slider');
+  const valueEl = document.getElementById('fr-target-value');
+  const tagEl = document.getElementById('fr-target-tag');
+  const statusEl = document.getElementById('fr-target-status');
+  const continueBtn = document.getElementById('fr-target-continue');
+
+  if (slider) {
+    slider.addEventListener('input', () => {
+      const held = clampHeld(parseInt(slider.value, 10));
+      _state.targetHeld = held;
+      if (valueEl) valueEl.textContent = formatRatio(held);
+      if (tagEl) tagEl.textContent = directionTag(held);
+    });
+  }
+
+  if (continueBtn) {
+    continueBtn.addEventListener('click', async () => {
+      const held = clampHeld(_state.targetHeld);
+      continueBtn.disabled = true;
+      if (statusEl) {
+        statusEl.textContent = 'Saving target…';
+        statusEl.setAttribute('data-state', 'pending');
+      }
+      try {
+        await setTargetSplitHeld(held);
+        if (statusEl) {
+          statusEl.textContent = `Target set to ${formatRatio(held)}.`;
+          statusEl.setAttribute('data-state', 'ok');
+        }
+        setTimeout(() => goToStep('calibrate'), 200);
+      } catch (err) {
+        if (statusEl) {
+          statusEl.textContent = (err && err.message) ? err.message : String(err);
+          statusEl.setAttribute('data-state', 'warn');
+        }
+      } finally {
+        continueBtn.disabled = false;
+      }
+    });
+  }
+}
+
+function clampHeld(n) {
+  if (!Number.isFinite(n)) return 7;
+  return Math.max(1, Math.min(9, Math.round(n)));
+}
+
+// ── Step 4: First calibration ───────────────────────────────────────
 
 async function runCalibrationStep() {
   const status = document.getElementById('fr-calibrate-status');
@@ -455,6 +542,7 @@ async function decideInitialVisibility() {
 async function wireUI() {
   wireApiKeyStep();
   wireOllamaStep();
+  wireTargetStep();
   wireCalibrateStep();
 
   const replay = document.getElementById('replay-first-run');

@@ -662,10 +662,45 @@ pub async fn delete_conversation(
 // above the composer.
 
 #[tauri::command]
-pub fn suggested_tones(
+pub async fn suggested_tones(
     fingerprint: crate::schema::Fingerprint,
-) -> Vec<crate::schema::ToneSuggestion> {
-    crate::rules::tone_suggestions::derive(&fingerprint)
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::schema::ToneSuggestion>, String> {
+    // v0.1.7: read target ratio + sensed split so the cue selection
+    // can be gap-driven. Falls back to fingerprint-only behaviour when
+    // either signal is unavailable (no active flavour, missing mapping).
+    let target_held = Some(state.settings.read().await.target_split_held);
+    let sensed = match state.flavour.read().await.as_ref() {
+        Some(flv) => crate::rules::sensed_split::compute(&fingerprint, flv),
+        None => None,
+    };
+    Ok(crate::rules::tone_suggestions::derive(
+        &fingerprint,
+        target_held,
+        sensed.as_ref(),
+    ))
+}
+
+// ── Sensed split (v0.1.7) ──────────────────────────────────────────
+//
+// Stateless command: caller passes the current fingerprint, the engine
+// computes the sensed split under the active flavour's
+// split_ratio_mapping. Returns None as a serialised null when the
+// flavour has no mapping declared (legacy flavours) or the fingerprint
+// is empty.
+//
+// Canon discipline: this is the instrument's reading (sensed-split
+// register), never the practitioner's self-rated split ratio.
+
+#[tauri::command]
+pub async fn sensed_split(
+    fingerprint: crate::schema::Fingerprint,
+    state: State<'_, AppState>,
+) -> Result<Option<crate::schema::SensedSplit>, String> {
+    match state.flavour.read().await.as_ref() {
+        Some(flv) => Ok(crate::rules::sensed_split::compute(&fingerprint, flv)),
+        None => Ok(None),
+    }
 }
 
 #[allow(dead_code)]

@@ -7,9 +7,10 @@
 // fingerprint is available (preview, IPC error, first-run skipped),
 // the static sample is left in place.
 
-import { isTauri, Calibration, Settings } from './ipc.js';
+import { isTauri, Calibration, Settings, SensedSplit } from './ipc.js';
 import { applyFingerprint as applyStrip } from './calibration-strip.js';
 import { updateFromFingerprint as applyCategoryVis } from './category-vis.js';
+import { getTargetSplitHeldSync, getTargetSplitHeld } from './target-ratio.js';
 
 let _state = {
   fingerprint: null,
@@ -53,6 +54,10 @@ export function resetForModelChange(newModel) {
   import('./tone-suggestions.js')
     .then((m) => m.update(null))
     .catch(() => { /* non-fatal */ });
+
+  // Hide sensed-split badge — same reason as the tone-cues row.
+  const badge = document.getElementById('sensed-split-badge');
+  if (badge) badge.setAttribute('data-state', 'hidden');
 }
 
 export function applyFingerprint(fp) {
@@ -66,6 +71,12 @@ export function applyFingerprint(fp) {
   import('./tone-suggestions.js')
     .then((m) => m.update(fp))
     .catch((e) => console.warn('tone-suggestions import failed:', e));
+
+  // v0.1.7: refresh the sensed-split badge. Reads the sensed split via
+  // IPC (Rust side computes from the fingerprint under the active
+  // flavour's split_ratio_mapping). Hidden when the flavour declares no
+  // mapping (legacy flavours) or the fingerprint can't produce a reading.
+  refreshSensedSplitBadge(fp);
 
   // Panel header — model name, probe count, refreshed timestamp.
   // The HTML ships with placeholders ("claude-sonnet-4.6", "38 probes",
@@ -242,6 +253,100 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
+}
+
+// ── Sensed-split badge (v0.1.7) ─────────────────────────────────────
+//
+// Reads the sensed split via IPC from the current fingerprint and
+// paints the badge under the panel header. Hidden when the flavour
+// declares no `split_ratio_mapping` (legacy flavours) or the IPC
+// returns null.
+//
+// Canon discipline (split-ratio.md v1.1 rule 5): every UI surface in
+// this function uses the phrase "sensed split", never "split ratio" /
+// "your split ratio". The target marker is labelled "your target
+// ratio" — the user's setting, not a self-rating.
+
+async function refreshSensedSplitBadge(fp) {
+  const badge = document.getElementById('sensed-split-badge');
+  if (!badge) return;
+
+  let reading = null;
+  if (isTauri) {
+    try {
+      reading = await SensedSplit.read(fp);
+    } catch (err) {
+      console.warn('sensed_split IPC failed:', err);
+    }
+  }
+
+  if (!reading) {
+    badge.setAttribute('data-state', 'hidden');
+    return;
+  }
+
+  // Marker position: held ∈ [1, 9] maps to track position [10%, 90%].
+  // (The track endpoints are visually pinned to "held"/"conflated"
+  // labels — the canon-excluded 0/10 positions don't appear on screen.)
+  const markerPct = sensedSplitTrackPercent(reading.held);
+  const targetHeld = getTargetSplitHeldSync();
+  const targetPct = sensedSplitTrackPercent(targetHeld);
+
+  setText('sensed-split-ratio', reading.ratio || '—:—');
+  setText('sensed-split-direction', reading.direction || '—');
+  setText('sensed-split-band', `band ±${reading.band ?? '—'}`);
+  setText('sensed-split-summary', reading.verdict_summary || '—');
+
+  const marker = document.getElementById('sensed-split-marker');
+  if (marker) marker.style.left = `${markerPct}%`;
+  const target = document.getElementById('sensed-split-target');
+  if (target) target.style.left = `${targetPct}%`;
+
+  // Per-dial breakdown — gridded dt / dial-track / dial-value triplets.
+  const dialList = document.getElementById('sensed-split-dial-list');
+  if (dialList) {
+    const dials = Array.isArray(reading.per_dial) ? reading.per_dial : [];
+    if (dials.length === 0) {
+      dialList.innerHTML = '';
+      const details = document.getElementById('sensed-split-dials');
+      if (details) details.style.display = 'none';
+    } else {
+      const details = document.getElementById('sensed-split-dials');
+      if (details) details.style.display = '';
+      dialList.innerHTML = dials.map((d) => {
+        const pct = Math.max(0, Math.min(100, (d.value || 0) * 100));
+        return `
+          <dt>${escapeHtml(d.label || d.slug)}</dt>
+          <dd class="dial-track"><div class="dial-fill" style="width: ${pct.toFixed(0)}%"></div></dd>
+          <dd class="dial-value">${pct.toFixed(0)}%</dd>
+        `;
+      }).join('');
+    }
+  }
+
+  badge.setAttribute('data-state', 'visible');
+
+  // Re-read the target from disk in the background — covers the case
+  // where the user changed the target in Settings between renders. The
+  // marker position only updates on the next fingerprint refresh, which
+  // is fine: the badge is a fingerprint-driven surface.
+  if (isTauri) {
+    getTargetSplitHeld().then((held) => {
+      const t = document.getElementById('sensed-split-target');
+      if (t) t.style.left = `${sensedSplitTrackPercent(held)}%`;
+    }).catch(() => {});
+  }
+}
+
+function sensedSplitTrackPercent(held) {
+  const h = Math.max(1, Math.min(9, Number(held) || 5));
+  // [1, 9] → [10%, 90%]: each step of held is 10% along the track.
+  return h * 10;
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
 }
 
 // Minimal markdown renderer for narrator output.

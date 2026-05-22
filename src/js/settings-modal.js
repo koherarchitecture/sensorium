@@ -9,6 +9,7 @@
 // focusable but don't yet persist their values.
 
 import { isTauri, Settings, ApiKey, Probes, Provider, FlavourInstall, External } from './ipc.js';
+import { setTargetSplitHeld, formatRatio, directionTag, clampHeld } from './target-ratio.js';
 
 let _onChanged = null;
 
@@ -45,6 +46,7 @@ export function init({ onChanged } = {}) {
     const probeSelection = readProbePickers();
     const activeModel = readChatModel();
     const extras = readExtraSettings();
+    const targetHeld = readTargetSplitHeld();
 
     if (isTauri) {
       try {
@@ -59,13 +61,18 @@ export function init({ onChanged } = {}) {
         if (extras.refresh_hours != null) s.filter_cartography_refresh_hours = extras.refresh_hours;
         if (extras.budget_usd != null) s.filter_cartography_budget_usd = extras.budget_usd;
         if (extras.narration_mode != null) s.narration_mode = extras.narration_mode;
+        // v0.1.7 — target ratio (canon rule 5: never call it "your split ratio").
+        if (targetHeld != null) s.target_split_held = targetHeld;
         await Settings.update(s);
       } catch (err) {
         console.warn('settings save failed:', err);
       }
+    } else if (targetHeld != null) {
+      // Browser preview: at least keep the localStorage mirror in sync.
+      try { await setTargetSplitHeld(targetHeld); } catch (_) {}
     }
 
-    if (_onChanged) _onChanged({ probeSelection, activeModel });
+    if (_onChanged) _onChanged({ probeSelection, activeModel, targetHeld });
     close();
   });
 
@@ -80,6 +87,12 @@ export function init({ onChanged } = {}) {
   // the installed slug, and reload state.flavour so the next calibration
   // uses the new probe bank.
   wireFlavourInstallActions();
+
+  // ── Target ratio control (v0.1.7) ───────────────────────────────
+  // Live-updates the readout as the user drags; persistence happens
+  // in the Save handler so a cancel discards changes consistently with
+  // the rest of the modal.
+  wireTargetRatioControl();
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.getAttribute('data-open') === 'true') close();
@@ -455,9 +468,15 @@ async function syncFromSource() {
       activeModel = s.active_model || null;
       // Dhyeya #14: hydrate the persistence-pass dropdowns too.
       applyExtraSettings(s);
+      // v0.1.7: hydrate the target-ratio slider from persisted Settings.
+      applyTargetSplitHeld(s.target_split_held);
     } catch (err) {
       console.warn('Settings.get failed:', err);
     }
+  } else {
+    // Browser preview: hydrate from localStorage mirror so a reload
+    // of the static preview still reflects the user's last choice.
+    applyTargetSplitHeld(null);
   }
 
   // Refresh the API-key status pill so it reflects current keychain
@@ -621,6 +640,57 @@ function applyExtraSettings(s) {
     const known = Array.from(narration.options).some((o) => o.value === val);
     if (known) narration.value = val;
   }
+}
+
+// ── Target ratio (v0.1.7) ──────────────────────────────────────────
+//
+// Live-updates the readout text as the user drags the slider. The
+// value is read from the DOM at save time and persisted to Settings
+// alongside the other modal fields.
+//
+// Canon discipline: the labels in the markup say "Target ratio", the
+// direction tag says "held-leaning" / "balanced" / "conflated-leaning",
+// and at no point does the UI use the phrase "your split ratio" or
+// "the split ratio" — those belong to the self-rated register an
+// instrument cannot occupy (canon rule 5).
+
+function wireTargetRatioControl() {
+  const slider = document.getElementById('settings-target-slider');
+  const valueEl = document.getElementById('settings-target-value');
+  const tagEl = document.getElementById('settings-target-tag');
+  if (!slider) return;
+  slider.addEventListener('input', () => {
+    const held = clampHeld(parseInt(slider.value, 10));
+    if (valueEl) valueEl.textContent = formatRatio(held);
+    if (tagEl) tagEl.textContent = directionTag(held);
+  });
+}
+
+function readTargetSplitHeld() {
+  const slider = document.getElementById('settings-target-slider');
+  if (!slider) return null;
+  const n = parseInt(slider.value, 10);
+  if (!Number.isFinite(n)) return null;
+  return clampHeld(n);
+}
+
+function applyTargetSplitHeld(held) {
+  const slider = document.getElementById('settings-target-slider');
+  const valueEl = document.getElementById('settings-target-value');
+  const tagEl = document.getElementById('settings-target-tag');
+  if (!slider) return;
+  // null / undefined → leave whatever the renderer last had (or the
+  // markup default). Otherwise clamp into range before applying.
+  let h;
+  if (typeof held === 'number' && Number.isFinite(held)) {
+    h = clampHeld(held);
+  } else {
+    // Fall back to whatever the slider already shows, clamped.
+    h = clampHeld(parseInt(slider.value, 10));
+  }
+  slider.value = String(h);
+  if (valueEl) valueEl.textContent = formatRatio(h);
+  if (tagEl) tagEl.textContent = directionTag(h);
 }
 
 function escapeHtml(s) {

@@ -37,6 +37,24 @@ pub struct Settings {
     /// Missing entries default to random.
     #[serde(default)]
     pub probe_selection: HashMap<String, String>,
+    /// The user's chosen target ratio for conversations with the model,
+    /// expressed as the *held* side on a 1-9 scale. The conflated side
+    /// is implied as `10 - target_split_held`. A value of 7 means the
+    /// user is working toward a 7:3 (held-leaning) conversation.
+    ///
+    /// This is the *target* the user defines and works toward. It is
+    /// not a sensed reading; the instrument reads the model independently.
+    /// Per the canon's seven-rule pattern (rule 5), the UI never labels
+    /// this "your split ratio" — that phrase belongs to the self-rated
+    /// register an instrument cannot occupy.
+    ///
+    /// Set on first run; adjustable in Settings. Default: 7.
+    #[serde(default = "default_target_split_held")]
+    pub target_split_held: u8,
+}
+
+fn default_target_split_held() -> u8 {
+    7
 }
 
 impl Default for Settings {
@@ -62,15 +80,23 @@ impl Default for Settings {
             ollama_setup_complete: false,
             first_run_complete: false,
             probe_selection: HashMap::new(),
+            target_split_held: default_target_split_held(),
         }
     }
 }
 
 impl Settings {
-    /// Validate that an active flavour is named.
+    /// Validate that an active flavour is named and the target ratio is
+    /// within the canon's configurable range.
     pub fn validate(&self) -> Result<(), String> {
         if self.active_flavour.is_empty() {
             return Err("active_flavour must be set".into());
+        }
+        if !crate::rules::target_ratio::is_valid_held(self.target_split_held) {
+            return Err(format!(
+                "target_split_held must be in 1..=9 (got {})",
+                self.target_split_held
+            ));
         }
         Ok(())
     }
