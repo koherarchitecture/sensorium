@@ -5,5 +5,5 @@ mod openrouter;
 
 pub use openrouter::{
     ChatChunk, ChatMessageInput, ChatOpts, CompletionResult, ModelInfo,
-    OpenRouterClient, NARRATOR_MODEL,
+    OpenRouterClient, UsageInfo, NARRATOR_MODEL,
 };

@@ -200,6 +200,80 @@ html, body {
   margin-left: -6px;
 }
 
+.model-pick-wrap {
+  position: relative;
+}
+.model-pick-wrap[data-open="true"] .caret {
+  transform: rotate(180deg);
+}
+.model-pick-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 320px;
+  max-width: 420px;
+  background: var(--paper);
+  color: var(--ink-paper);
+  border: 1px solid var(--paper-rule-2);
+  border-radius: 3px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+  display: none;
+  z-index: 50;
+  padding: 8px;
+}
+.model-pick-wrap[data-open="true"] .model-pick-menu {
+  display: block;
+}
+.model-pick-filter {
+  width: 100%;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--paper-rule-2);
+  border-radius: 3px;
+  font-family: var(--type-mono);
+  font-size: 11px;
+  color: var(--ink-paper);
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+.model-pick-filter:focus {
+  outline: none;
+  border-color: var(--hue-bronze);
+}
+.model-pick-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.model-pick-row {
+  padding: 6px 10px;
+  font-family: var(--type-mono);
+  font-size: 11px;
+  color: var(--ink-paper);
+  cursor: pointer;
+  border-radius: 2px;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  display: block;
+}
+.model-pick-row:hover {
+  background: rgba(199, 91, 57, 0.08);
+  color: var(--hue-bronze);
+}
+.model-pick-row[aria-selected="true"] {
+  background: rgba(199, 91, 57, 0.14);
+  color: var(--hue-bronze);
+  font-weight: 500;
+}
+.model-pick-empty {
+  padding: 12px;
+  font-family: var(--type-mono);
+  font-size: 11px;
+  color: var(--ink-paper-3);
+  text-align: center;
+}
+
 /* Subtle settings gear button */
 .settings-btn {
   display: inline-flex;
@@ -399,6 +473,18 @@ html, body {
   color: var(--ink-paper);
   cursor: pointer;
   min-width: 180px;
+}
+/* Suppress native OS dropdown styling and supply a consistent chevron.
+   Dhyeya #12: without this, Settings dropdowns inherit OS-native arrow
+   glyphs and gradients that don't match the rest of the custom UI. */
+.settings-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%232D3127' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 }
 .settings-input { font-family: var(--type-body); cursor: text; min-width: 240px; }
 .settings-input:focus,
@@ -1398,6 +1484,52 @@ html, body {
   color: var(--ink-paper-2);
   font-weight: 500;
 }
+.cost-line.usage-line {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--paper-rule);
+}
+.cost-line.usage-line[data-state="cold"] .usage-val { color: var(--ink-paper-3); }
+.cost-line.usage-line[data-state="loaded"] .usage-val { color: var(--ink-paper-2); font-weight: 500; }
+.cost-line.usage-line[data-state="error"] .usage-val { color: var(--hue-redirect); }
+
+.refresh-action {
+  margin-left: 14px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--paper-rule-2);
+  border-radius: 2px;
+  color: var(--ink-paper-2);
+  font-family: var(--type-label);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.refresh-action:hover {
+  border-color: var(--hue-bronze);
+  color: var(--hue-bronze);
+}
+.refresh-action[data-state="running"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.refresh-action .refresh-glyph {
+  font-size: 12px;
+  line-height: 1;
+}
+.refresh-action[data-state="running"] .refresh-glyph {
+  animation: refresh-spin 1.1s linear infinite;
+}
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 /* ── Reading section — varies by mode ──────────────────────────────── */
 
@@ -1499,16 +1631,20 @@ html, body {
   display: grid;
   grid-template-columns: 22px 92px 1fr;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
   padding: 8px 0;
 }
 .legend-row + .legend-row {
   border-top: 1px dashed var(--paper-rule);
 }
 .legend-row .row-sym {
-  font-size: 14px;
-  text-align: center;
+  font-size: 16px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
 }
 .legend-row .legend-label {
   font-family: var(--type-body);
@@ -2095,7 +2231,7 @@ body[data-first-run="true"] .first-run { display: flex; }
   background: var(--bench);
   overflow-y: auto;
   padding: 40px 32px 60px;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
 }
 
@@ -2103,6 +2239,7 @@ body[data-first-run="true"] .first-run { display: flex; }
   position: relative;
   width: 100%;
   max-width: 720px;
+  margin: auto;
   background: var(--paper);
   color: var(--ink-paper);
   border: 1px solid var(--paper-rule-2);
@@ -2413,6 +2550,50 @@ body[data-first-run="true"] .first-run { display: flex; }
 .fr-status[data-state="ok"]      { color: var(--hue-substantive, #6b8e3e); }
 .fr-status[data-state="warn"]    { color: var(--hue-refusal); }
 .fr-status[data-state="pending"] { color: var(--ink-paper-3); }
+
+.fr-status.fr-status-primary {
+  font-size: 16px;
+  font-weight: 500;
+  padding: 12px 16px;
+  border-radius: 4px;
+  background: rgba(232, 184, 109, 0.08);
+  border: 1px solid rgba(232, 184, 109, 0.4);
+  margin-bottom: 16px;
+}
+.fr-status.fr-status-primary[data-state="ok"] {
+  background: rgba(61, 122, 74, 0.08);
+  border-color: rgba(61, 122, 74, 0.4);
+}
+.fr-status.fr-status-primary[data-state="warn"] {
+  background: rgba(176, 74, 62, 0.08);
+  border-color: rgba(176, 74, 62, 0.4);
+}
+
+.fr-ollama-details {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.fr-ollama-details summary {
+  font-family: var(--type-label);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-paper-2);
+  cursor: pointer;
+  list-style: none;
+  letter-spacing: 0.04em;
+}
+.fr-ollama-details summary::-webkit-details-marker { display: none; }
+.fr-ollama-details summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--ink-paper-3);
+  transition: transform 0.15s ease;
+}
+.fr-ollama-details[open] summary::before { transform: rotate(90deg); }
 
 .fr-ollama-info {
   margin: 6px 0 0;
@@ -2767,7 +2948,28 @@ body[data-first-run="true"] .first-run { display: flex; }
   padding-left: 4px;
 }
 .btc-layer {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+}
+.btc-layer.btc-layer-toggle {
+  border: 1px solid var(--paper-rule);
+  border-radius: 3px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.btc-layer.btc-layer-toggle summary {
+  list-style: none;
+  cursor: pointer;
+}
+.btc-layer.btc-layer-toggle summary::-webkit-details-marker { display: none; }
+.btc-layer.btc-layer-toggle .btc-tease {
+  font-family: var(--type-body);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-paper-3);
+}
+.btc-layer.btc-layer-toggle[open] .btc-tease { display: none; }
+.btc-layer.btc-layer-toggle .btc-text {
+  margin-top: 8px;
 }
 .btc-layer-head {
   display: flex;
@@ -2981,11 +3183,19 @@ body[data-first-run="true"] .first-run { display: flex; }
       <span class="ver" id="brand-version">v0.1</span>
     </div>
     <div style="display: flex; align-items: center;">
-      <button class="model-pick" type="button" aria-label="Choose model">
-        <span class="label">Model</span>
-        <span class="value" id="header-model-value">anthropic / claude-sonnet-4.6</span>
-        <span class="caret">▾</span>
-      </button>
+      <div class="model-pick-wrap" id="model-pick-wrap" data-open="false">
+        <button class="model-pick" id="model-pick-btn" type="button" aria-label="Choose model" aria-haspopup="listbox" aria-expanded="false">
+          <span class="label">Model</span>
+          <span class="value" id="header-model-value">—</span>
+          <span class="caret">▾</span>
+        </button>
+        <div class="model-pick-menu" id="model-pick-menu" role="listbox" aria-label="Choose chat model">
+          <input type="search" class="model-pick-filter" id="model-pick-filter" placeholder="Filter models…" autocomplete="off" spellcheck="false" />
+          <div class="model-pick-list" id="model-pick-list">
+            <div class="model-pick-empty">Loading models…</div>
+          </div>
+        </div>
+      </div>
       <button class="settings-btn" id="settings-btn" type="button" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
@@ -3041,29 +3251,36 @@ body[data-first-run="true"] .first-run { display: flex; }
           <p class="fr-intro">
             Sensorium runs a small local model to classify probe responses — the
             <strong>Q-layer</strong> in the architecture. This keeps classification
-            fast, free, and private. It needs <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>
-            installed and running.
+            fast, free, and private. It needs <strong>Ollama</strong>
+            installed and running — get it from ollama.com.
           </p>
         </header>
 
-        <dl class="fr-ollama-info">
-          <dt>System RAM</dt>
-          <dd id="fr-ollama-ram">—</dd>
-          <dt>Recommended model</dt>
-          <dd id="fr-ollama-recommend">—</dd>
-        </dl>
+        <!-- Status FIRST — the primary signal. If green, the user can
+             Continue. If amber/red, the details below explain why and
+             offer the Pull and Re-check affordances. Dhyeya #03: the
+             original layout led with system info, recommendations, and
+             commands before status, making the next step unclear. -->
+        <p class="fr-status fr-status-primary" id="fr-ollama-status" data-state="pending">Checking Ollama daemon…</p>
 
-        <p class="fr-input-help">If the daemon is running and the model is present, you'll see a green confirmation below.
-        Otherwise click <strong>Pull now</strong> to fetch the recommended model — Sensorium will stream progress here. Or run the
-        command in your own terminal:</p>
-        <code class="fr-cmd" id="fr-ollama-pull-cmd">ollama pull qwen2.5:1.5b</code>
+        <details class="fr-ollama-details" id="fr-ollama-details">
+          <summary>System info, recommended model, and the install command</summary>
+          <dl class="fr-ollama-info">
+            <dt>System RAM</dt>
+            <dd id="fr-ollama-ram">—</dd>
+            <dt>Recommended model</dt>
+            <dd id="fr-ollama-recommend">—</dd>
+          </dl>
+          <p class="fr-input-help">If the daemon is running and the model is present, the status above turns green.
+          Otherwise click <strong>Pull now</strong> to fetch the recommended model — progress streams here. Or run the
+          command in your own terminal:</p>
+          <code class="fr-cmd" id="fr-ollama-pull-cmd">ollama pull qwen2.5:1.5b</code>
+        </details>
 
         <div class="fr-pull-progress" id="fr-pull-progress" data-state="idle">
           <div class="fr-pull-bar"><div class="fr-pull-bar-fill" id="fr-pull-bar-fill"></div></div>
           <p class="fr-pull-line" id="fr-pull-line">—</p>
         </div>
-
-        <p class="fr-status" id="fr-ollama-status" data-state="pending">Checking…</p>
 
         <footer class="fr-foot">
           <div class="fr-actions" style="margin-left: auto; display: flex; gap: 8px;">
@@ -3203,13 +3420,13 @@ body[data-first-run="true"] .first-run { display: flex; }
         <!-- Header -->
         <header class="panel-head">
           <div class="panel-eyebrow">Filter Cartography</div>
-          <h2 class="panel-title">claude-sonnet-4.6</h2>
+          <h2 class="panel-title">awaiting first calibration</h2>
           <div class="panel-meta">
-            <span>38 probes</span>
+            <span>— probes</span>
             <span class="pip"></span>
             <span>english</span>
             <span class="pip"></span>
-            <span>refreshed 12 days ago</span>
+            <span>not yet calibrated</span>
           </div>
 
           <div class="mode-bar">
@@ -3256,8 +3473,16 @@ body[data-first-run="true"] .first-run { display: flex; }
             </div>
             <span class="cost-line">
               <span class="cost-val" id="cost-val">~$0.18</span>
-              next refresh
+              <span class="cost-suffix">next refresh (est.)</span>
             </span>
+            <span class="cost-line usage-line" id="openrouter-usage-line" data-state="cold">
+              <span class="usage-val" id="openrouter-usage-val">—</span>
+              <span class="usage-suffix">spent on key</span>
+            </span>
+            <button class="refresh-action" type="button" data-action="refresh" title="Run a fresh calibration now" aria-label="Refresh calibration">
+              <span class="refresh-glyph" aria-hidden="true">↻</span>
+              <span class="refresh-label">refresh</span>
+            </button>
           </div>
         </header>
 
@@ -3762,11 +3987,11 @@ body[data-first-run="true"] .first-run { display: flex; }
               <span class="label-sub">used for Q-layer response classification</span>
             </span>
             <span class="value">
-              <select class="settings-select">
-                <option>qwen2.5:0.5b — minimal (≈0.4 GB)</option>
-                <option>qwen2.5:1.5b — lean (≈1.0 GB)</option>
-                <option selected>qwen2.5:3b — standard (≈2.0 GB)</option>
-                <option>qwen2.5:7b — strong (≈4.5 GB)</option>
+              <select class="settings-select" id="settings-ollama-model">
+                <option value="qwen2.5:0.5b">qwen2.5:0.5b — minimal (≈0.4 GB)</option>
+                <option value="qwen2.5:1.5b">qwen2.5:1.5b — lean (≈1.0 GB)</option>
+                <option value="qwen2.5:3b">qwen2.5:3b — standard (≈2.0 GB)</option>
+                <option value="qwen2.5:7b" selected>qwen2.5:7b — strong (≈4.5 GB)</option>
               </select>
             </span>
           </div>
@@ -3787,12 +4012,12 @@ body[data-first-run="true"] .first-run { display: flex; }
               <span class="label-sub">how often the panel re-probes the model</span>
             </span>
             <span class="value">
-              <select class="settings-select">
-                <option>Every 1 hour</option>
-                <option>Every 6 hours</option>
-                <option selected>Every 24 hours (daily)</option>
-                <option>Weekly</option>
-                <option>Manual only</option>
+              <select class="settings-select" id="settings-refresh-hours">
+                <option value="1">Every 1 hour</option>
+                <option value="6">Every 6 hours</option>
+                <option value="24" selected>Every 24 hours (daily)</option>
+                <option value="168">Weekly</option>
+                <option value="0">Manual only</option>
               </select>
             </span>
           </div>
@@ -3802,12 +4027,12 @@ body[data-first-run="true"] .first-run { display: flex; }
               <span class="label-sub">hard ceiling; refresh stops if exceeded</span>
             </span>
             <span class="value">
-              <select class="settings-select">
-                <option>$0.10</option>
-                <option>$0.25</option>
-                <option selected>$0.50</option>
-                <option>$1.00</option>
-                <option>$2.00</option>
+              <select class="settings-select" id="settings-budget-usd">
+                <option value="0.10">$0.10</option>
+                <option value="0.25">$0.25</option>
+                <option value="0.50" selected>$0.50</option>
+                <option value="1.00">$1.00</option>
+                <option value="2.00">$2.00</option>
               </select>
             </span>
           </div>
@@ -3831,11 +4056,11 @@ body[data-first-run="true"] .first-run { display: flex; }
               <span class="label-sub">also adjustable inline from the panel meta line</span>
             </span>
             <span class="value">
-              <select class="settings-select">
-                <option>raw (~$0.09)</option>
-                <option>economical (~$0.12)</option>
-                <option selected>functional (~$0.18)</option>
-                <option>robust (~$0.33)</option>
+              <select class="settings-select" id="settings-narration-mode">
+                <option value="raw">raw (~$0.09)</option>
+                <option value="economical">economical (~$0.12)</option>
+                <option value="functional" selected>functional (~$0.18)</option>
+                <option value="robust">robust (~$0.33)</option>
               </select>
             </span>
           </div>

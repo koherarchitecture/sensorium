@@ -253,9 +253,18 @@ function setComposerEnabled(enabled) {
 // "Has content" is read from the DOM, not from STATE — the chat-scroll
 // can carry static sample exchanges that aren't in STATE.history.
 function refreshNewChatVisualState() {
-  if (!STATE.newChatEl) return;
   const scroll = document.querySelector('.chat-scroll');
   const hasContent = !!(scroll && scroll.firstElementChild);
+
+  // Composer placeholder branches on whether anything has been said yet.
+  // "Continue the conversation" reads wrong on a fresh chat (Dhyeya #08).
+  if (STATE.inputEl) {
+    STATE.inputEl.placeholder = hasContent
+      ? 'continue the conversation…'
+      : 'start a conversation…';
+  }
+
+  if (!STATE.newChatEl) return;
   const inactive = STATE.streaming || !hasContent;
   STATE.newChatEl.classList.toggle('is-dim', inactive);
 }

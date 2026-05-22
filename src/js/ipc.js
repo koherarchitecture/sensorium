@@ -51,6 +51,24 @@ export const ApiKey = {
 
 export const Provider = {
   listModels: () => invoke('list_models'),
+  // OpenRouter usage — { usage: number (USD spent), limit: number|null,
+  // label: string|null, is_free_tier: boolean|null }.
+  usage: () => invoke('openrouter_usage'),
+};
+
+// Flavour install (v0.1.6) — User-initiated install of a flavour JSON
+// either by URL or by file picker. Both pathways validate, save to
+// user-data, activate as the new active_flavour, and reload the
+// in-memory state.flavour so the next calibration uses it.
+export const FlavourInstall = {
+  fromUrl: (url) => invoke('install_flavour_from_url', { url }),
+  fromFile: () => invoke('install_flavour_from_file'),
+};
+
+// External URL helper (v0.1.6) — opens a URL in the user's default
+// browser via the shell plugin. Used by the Browse registry button.
+export const External = {
+  openUrl: (url) => invoke('open_external_url', { url }),
 };
 
 export const Ollama = {

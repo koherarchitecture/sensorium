@@ -389,6 +389,199 @@ pub async fn seed_active_flavour(
     }
 }
 
+// ── OpenRouter usage (v0.1.6, Dhyeya #10) ─────────────────────────
+//
+// Surfaces the user's own spend on their OpenRouter key. Telemetry-
+// not-introspection: the position is about the model's behaviour; the
+// user's own credit consumption is fair game to display. Read on
+// settings-modal open and after each calibration refresh; the JS side
+// caches between calls.
+
+#[tauri::command]
+pub async fn openrouter_usage(
+    state: State<'_, AppState>,
+) -> Result<crate::providers::UsageInfo, String> {
+    let key = state
+        .openrouter_key
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| "OpenRouter key not set".to_string())?;
+    let client = OpenRouterClient::new(key);
+    client.usage().await.map_err(|e| e.to_string())
+}
+
+// ── Flavour install (v0.1.6) ──────────────────────────────────────
+//
+// Two install pathways + browse-registry helper. Both pathways validate
+// the JSON, write to user-data, activate as the new active flavour, and
+// reload the in-memory state.flavour so the next calibration uses the
+// new probe bank without an app restart.
+
+const FLAVOUR_FETCH_MAX_BYTES: usize = 1_000_000; // 1 MB ceiling
+const FLAVOUR_FETCH_TIMEOUT_SECS: u64 = 30;
+
+async fn activate_flavour_after_install(
+    cfg: &crate::schema::FlavourConfig,
+    app: &tauri::AppHandle,
+    state: &State<'_, AppState>,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let user_data_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("resolve user data dir: {e}"))?;
+    let bundle_resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resolve bundle resource dir: {e}"))?;
+
+    let loaded = crate::flavour::load_flavour(
+        &cfg.slug,
+        Some(&user_data_dir),
+        Some(&bundle_resource_dir),
+    )
+    .map_err(|e| format!("reload installed flavour '{}': {e}", cfg.slug))?;
+
+    // Persist active_flavour to settings + write to disk.
+    let s_clone = {
+        let mut s = state.settings.write().await;
+        s.active_flavour = cfg.slug.clone();
+        s.clone()
+    };
+    settings::save_to_disk(app, &s_clone)
+        .map_err(|e| format!("persist active_flavour: {e}"))?;
+
+    *state.flavour.write().await = Some(loaded);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn install_flavour_from_url(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    url: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+
+    if url.trim().is_empty() {
+        return Err("URL is empty".into());
+    }
+    let trimmed = url.trim();
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return Err("URL must start with http:// or https://".into());
+    }
+
+    let user_data_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("resolve user data dir: {e}"))?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(FLAVOUR_FETCH_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("build http client: {e}"))?;
+
+    let resp = client
+        .get(trimmed)
+        .send()
+        .await
+        .map_err(|e| format!("fetch flavour from {trimmed}: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "flavour fetch returned HTTP {}",
+            resp.status().as_u16()
+        ));
+    }
+
+    // Bounded read — bail if the server tries to send something huge.
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("read response body: {e}"))?;
+    if bytes.len() > FLAVOUR_FETCH_MAX_BYTES {
+        return Err(format!(
+            "flavour file is {} bytes; ceiling is {} bytes",
+            bytes.len(),
+            FLAVOUR_FETCH_MAX_BYTES
+        ));
+    }
+
+    let cfg = crate::flavour::install_flavour_from_bytes(&bytes, &user_data_dir)
+        .map_err(|e| format!("install flavour: {e}"))?;
+
+    activate_flavour_after_install(&cfg, &app, &state).await?;
+    Ok(cfg.slug)
+}
+
+#[tauri::command]
+pub async fn install_flavour_from_file(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    use tauri::Manager;
+    use tauri_plugin_dialog::DialogExt;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog()
+        .file()
+        .add_filter("Flavour JSON", &["json"])
+        .pick_file(move |path| {
+            let _ = tx.send(path);
+        });
+    let picked = tokio::task::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|e| format!("dialog wait: {e}"))?
+        .map_err(|e| format!("dialog channel: {e}"))?;
+
+    let Some(file_path) = picked else {
+        // User cancelled — not an error.
+        return Ok(None);
+    };
+
+    let path_buf = file_path
+        .into_path()
+        .map_err(|e| format!("resolve picked path: {e}"))?;
+
+    let bytes = std::fs::read(&path_buf)
+        .map_err(|e| format!("read flavour file at {}: {e}", path_buf.display()))?;
+    if bytes.len() > FLAVOUR_FETCH_MAX_BYTES {
+        return Err(format!(
+            "flavour file is {} bytes; ceiling is {} bytes",
+            bytes.len(),
+            FLAVOUR_FETCH_MAX_BYTES
+        ));
+    }
+
+    let user_data_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("resolve user data dir: {e}"))?;
+    let cfg = crate::flavour::install_flavour_from_bytes(&bytes, &user_data_dir)
+        .map_err(|e| format!("install flavour: {e}"))?;
+
+    activate_flavour_after_install(&cfg, &app, &state).await?;
+    Ok(Some(cfg.slug))
+}
+
+#[tauri::command]
+pub async fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+
+    if url.trim().is_empty() {
+        return Err("URL is empty".into());
+    }
+    let trimmed = url.trim();
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return Err("URL must start with http:// or https://".into());
+    }
+    app.shell()
+        .open(trimmed, None)
+        .map_err(|e| format!("open external URL: {e}"))
+}
+
 // ── Workflow ──────────────────────────────────────────────────────
 
 #[tauri::command]

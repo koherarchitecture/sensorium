@@ -8,7 +8,7 @@
 // Other sections (Ollama, narration, workflow, about) render and are
 // focusable but don't yet persist their values.
 
-import { isTauri, Settings, ApiKey, Probes, Provider } from './ipc.js';
+import { isTauri, Settings, ApiKey, Probes, Provider, FlavourInstall, External } from './ipc.js';
 
 let _onChanged = null;
 
@@ -44,12 +44,21 @@ export function init({ onChanged } = {}) {
   if (save) save.addEventListener('click', async () => {
     const probeSelection = readProbePickers();
     const activeModel = readChatModel();
+    const extras = readExtraSettings();
 
     if (isTauri) {
       try {
         const s = await Settings.get();
         s.probe_selection = probeSelection;
         if (activeModel) s.active_model = activeModel;
+        // Dhyeya #14: previously only probe_selection + active_model
+        // were saved. The other dropdowns rendered but reverted on
+        // relaunch. v0.1.6 wires Ollama model, refresh cadence,
+        // budget cap, and narration mode to actual persistence.
+        if (extras.ollama_model != null) s.ollama_model = extras.ollama_model;
+        if (extras.refresh_hours != null) s.filter_cartography_refresh_hours = extras.refresh_hours;
+        if (extras.budget_usd != null) s.filter_cartography_budget_usd = extras.budget_usd;
+        if (extras.narration_mode != null) s.narration_mode = extras.narration_mode;
         await Settings.update(s);
       } catch (err) {
         console.warn('settings save failed:', err);
@@ -63,36 +72,14 @@ export function init({ onChanged } = {}) {
   // ── Provider section: update / clear API key ────────────────────
   wireProviderKeyActions();
 
-  // ── Flavour install buttons: not-yet-implemented notice ─────────
-  // The HTML carries three install affordances (From URL, From file,
-  // Browse registry) that v0.1 does not yet implement — the flavour
-  // pipeline ships Sycophancy bundled and a future release will add
-  // user-installable flavours. Until then, surface a clear inline
-  // notice rather than leaving the buttons dead.
-  const installUrlBtn = document.getElementById('settings-flavour-install-url');
-  const installFileBtn = document.getElementById('settings-flavour-install-file');
-  const browseBtn = document.getElementById('settings-flavour-browse');
-
-  const showFlavourInstallNotice = () => {
-    const host = installUrlBtn && installUrlBtn.parentElement;
-    if (!host) return;
-    let notice = host.parentElement.querySelector('.fr-install-notice');
-    if (!notice) {
-      notice = document.createElement('span');
-      notice.className = 'label-sub fr-install-notice';
-      notice.style.display = 'block';
-      notice.style.marginTop = '8px';
-      notice.style.color = 'var(--accent, #c75b39)';
-      host.parentElement.appendChild(notice);
-    }
-    notice.textContent =
-      'Flavour installation is not yet available in this release. ' +
-      'Sycophancy ships bundled; future versions will add From URL, From file, and Browse registry.';
-  };
-
-  if (installUrlBtn) installUrlBtn.addEventListener('click', showFlavourInstallNotice);
-  if (installFileBtn) installFileBtn.addEventListener('click', showFlavourInstallNotice);
-  if (browseBtn) browseBtn.addEventListener('click', showFlavourInstallNotice);
+  // ── Flavour install buttons (v0.1.6) ────────────────────────────
+  // Three pathways — From URL, From file, Browse registry — each
+  // calling its corresponding IPC. The v0.1.3 inline-notice placeholder
+  // is gone; these are now real installs that fetch / read / validate
+  // JSON, save to user-data/flavours/, set Settings.active_flavour to
+  // the installed slug, and reload state.flavour so the next calibration
+  // uses the new probe bank.
+  wireFlavourInstallActions();
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.getAttribute('data-open') === 'true') close();
@@ -211,6 +198,130 @@ async function clearKey() {
   } finally {
     if (clearBtn) clearBtn.disabled = false;
   }
+}
+
+// ── Flavour install (v0.1.6) ────────────────────────────────────────
+//
+// Three install pathways. Status surfaces in a single inline span below
+// the install-buttons row; cleared on next modal-open via syncFromSource.
+
+const FLAVOUR_REGISTRY_URL = 'https://koher.app/tools/sensorium/flavours';
+const FLAVOUR_SAMPLE_URL =
+  'https://raw.githubusercontent.com/koherarchitecture/sensorium/main/flavours/sycophancy.json';
+
+function showFlavourInstallStatus(text, state) {
+  const installUrlBtn = document.getElementById('settings-flavour-install-url');
+  const installFileBtn = document.getElementById('settings-flavour-install-file');
+  const browseBtn = document.getElementById('settings-flavour-browse');
+  const anchor = installUrlBtn || installFileBtn || browseBtn;
+  if (!anchor) return;
+  let notice = anchor.parentElement.parentElement
+    .querySelector('.flavour-install-status');
+  if (!notice) {
+    notice = document.createElement('span');
+    notice.className = 'label-sub flavour-install-status';
+    notice.style.display = 'block';
+    notice.style.marginTop = '8px';
+    anchor.parentElement.parentElement.appendChild(notice);
+  }
+  if (!text) {
+    notice.textContent = '';
+    notice.style.display = 'none';
+    notice.removeAttribute('data-state');
+    return;
+  }
+  notice.style.display = 'block';
+  notice.textContent = text;
+  notice.style.color = state === 'warn'
+    ? 'var(--hue-refusal, #b04a3e)'
+    : state === 'ok'
+      ? 'var(--hue-substantive, #3d7a4a)'
+      : 'var(--ink-paper-3, #6e6258)';
+  if (state) notice.setAttribute('data-state', state);
+  else notice.removeAttribute('data-state');
+}
+
+async function handleFromUrl() {
+  const url = window.prompt(
+    'Paste the URL of a flavour JSON file (must start with http:// or https://):',
+    FLAVOUR_SAMPLE_URL
+  );
+  if (url === null) return;  // user cancelled
+  const trimmed = url.trim();
+  if (!trimmed) {
+    showFlavourInstallStatus('URL is empty.', 'warn');
+    return;
+  }
+  if (!isTauri) {
+    showFlavourInstallStatus('From URL runs only inside the desktop app.', 'warn');
+    return;
+  }
+  showFlavourInstallStatus('Fetching and validating…', null);
+  try {
+    const slug = await FlavourInstall.fromUrl(trimmed);
+    showFlavourInstallStatus(
+      `Installed and activated '${slug}'. Run a calibration to use it.`,
+      'ok'
+    );
+  } catch (err) {
+    showFlavourInstallStatus(
+      'Install failed: ' + ((err && err.message) ? err.message : String(err)),
+      'warn'
+    );
+  }
+}
+
+async function handleFromFile() {
+  if (!isTauri) {
+    showFlavourInstallStatus('From file runs only inside the desktop app.', 'warn');
+    return;
+  }
+  showFlavourInstallStatus('Choose a flavour JSON file…', null);
+  try {
+    const slug = await FlavourInstall.fromFile();
+    if (slug === null) {
+      showFlavourInstallStatus('', null);  // cancelled
+      return;
+    }
+    showFlavourInstallStatus(
+      `Installed and activated '${slug}'. Run a calibration to use it.`,
+      'ok'
+    );
+  } catch (err) {
+    showFlavourInstallStatus(
+      'Install failed: ' + ((err && err.message) ? err.message : String(err)),
+      'warn'
+    );
+  }
+}
+
+async function handleBrowseRegistry() {
+  if (!isTauri) {
+    showFlavourInstallStatus(
+      'Browse registry runs only inside the desktop app. URL: ' + FLAVOUR_REGISTRY_URL,
+      null
+    );
+    return;
+  }
+  try {
+    await External.openUrl(FLAVOUR_REGISTRY_URL);
+    showFlavourInstallStatus('Opened registry in your default browser.', 'ok');
+  } catch (err) {
+    showFlavourInstallStatus(
+      'Could not open browser: ' + ((err && err.message) ? err.message : String(err)) +
+        '. URL: ' + FLAVOUR_REGISTRY_URL,
+      'warn'
+    );
+  }
+}
+
+function wireFlavourInstallActions() {
+  const installUrlBtn = document.getElementById('settings-flavour-install-url');
+  const installFileBtn = document.getElementById('settings-flavour-install-file');
+  const browseBtn = document.getElementById('settings-flavour-browse');
+  if (installUrlBtn) installUrlBtn.addEventListener('click', handleFromUrl);
+  if (installFileBtn) installFileBtn.addEventListener('click', handleFromFile);
+  if (browseBtn) browseBtn.addEventListener('click', handleBrowseRegistry);
 }
 
 function wireProviderKeyActions() {
@@ -342,6 +453,8 @@ async function syncFromSource() {
       const s = await Settings.get();
       selection = s.probe_selection || {};
       activeModel = s.active_model || null;
+      // Dhyeya #14: hydrate the persistence-pass dropdowns too.
+      applyExtraSettings(s);
     } catch (err) {
       console.warn('Settings.get failed:', err);
     }
@@ -427,6 +540,87 @@ function readChatModel() {
   const sel = document.getElementById('settings-chat-model');
   if (!sel) return null;
   return sel.value || null;
+}
+
+// Read the four additional Settings dropdowns introduced for persistence
+// in v0.1.6 (Dhyeya #14). Missing elements return null in their slot so
+// the save handler can skip them rather than overwriting saved state
+// with empty strings.
+function readExtraSettings() {
+  const out = {
+    ollama_model: null,
+    refresh_hours: null,
+    budget_usd: null,
+    narration_mode: null,
+  };
+  const ollama = document.getElementById('settings-ollama-model');
+  if (ollama && ollama.value) out.ollama_model = ollama.value;
+  const refresh = document.getElementById('settings-refresh-hours');
+  if (refresh && refresh.value !== '') {
+    const n = parseInt(refresh.value, 10);
+    if (!Number.isNaN(n)) out.refresh_hours = n;
+  }
+  const budget = document.getElementById('settings-budget-usd');
+  if (budget && budget.value !== '') {
+    const n = parseFloat(budget.value);
+    if (!Number.isNaN(n)) out.budget_usd = n;
+  }
+  const narration = document.getElementById('settings-narration-mode');
+  if (narration && narration.value) {
+    // The Rust schema for NarrationMode is a serde enum; values are
+    // serialised as PascalCase ("Raw" / "Economical" / "Functional" /
+    // "Robust"). The HTML option values are lowercase. Map on the way
+    // out so the backend receives what it expects.
+    const map = {
+      raw: 'Raw',
+      economical: 'Economical',
+      functional: 'Functional',
+      robust: 'Robust',
+    };
+    out.narration_mode = map[narration.value] || null;
+  }
+  return out;
+}
+
+// Pre-select the four extra Settings dropdowns from saved Settings.
+// Called from syncFromSource on every modal open so changes that
+// happened elsewhere (or were saved by a different module) are
+// reflected the next time the modal opens.
+function applyExtraSettings(s) {
+  if (!s) return;
+  const ollama = document.getElementById('settings-ollama-model');
+  if (ollama && s.ollama_model) {
+    const known = Array.from(ollama.options).some((o) => o.value === s.ollama_model);
+    if (!known) {
+      const opt = document.createElement('option');
+      opt.value = s.ollama_model;
+      opt.textContent = s.ollama_model + ' (saved)';
+      ollama.insertBefore(opt, ollama.firstChild);
+    }
+    ollama.value = s.ollama_model;
+  }
+  const refresh = document.getElementById('settings-refresh-hours');
+  if (refresh && typeof s.filter_cartography_refresh_hours === 'number') {
+    const candidate = String(s.filter_cartography_refresh_hours);
+    const known = Array.from(refresh.options).some((o) => o.value === candidate);
+    if (known) refresh.value = candidate;
+  }
+  const budget = document.getElementById('settings-budget-usd');
+  if (budget && typeof s.filter_cartography_budget_usd === 'number') {
+    // The HTML options are "0.10" / "0.25" / "0.50" / "1.00" / "2.00".
+    // toFixed(2) normalises the JSON-decoded float so it matches exactly.
+    const candidate = s.filter_cartography_budget_usd.toFixed(2);
+    const known = Array.from(budget.options).some((o) => o.value === candidate);
+    if (known) budget.value = candidate;
+  }
+  const narration = document.getElementById('settings-narration-mode');
+  if (narration && s.narration_mode) {
+    // Inverse of the readExtraSettings map.
+    const map = { Raw: 'raw', Economical: 'economical', Functional: 'functional', Robust: 'robust' };
+    const val = map[s.narration_mode] || String(s.narration_mode).toLowerCase();
+    const known = Array.from(narration.options).some((o) => o.value === val);
+    if (known) narration.value = val;
+  }
 }
 
 function escapeHtml(s) {

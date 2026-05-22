@@ -424,7 +424,12 @@ function buildDialsKey() {
   }
   wrap.appendChild(defs);
 
-  // Behind the Curtain — the three-layer architecture, exposed.
+  // Behind the Curtain — three-layer architecture exposed per probe.
+  // Dhyeya #13: text was dense with no progressive disclosure inside
+  // the curtain. The outer details was already collapsible, but once
+  // opened it showed three long paragraphs at once. Pattern from
+  // Fragment Mapper: each layer card is its own nested toggle, so the
+  // reader picks which layer to expand instead of facing all three.
   const btc = document.createElement('details');
   btc.className = 'probe-dials-btc';
   const summary = document.createElement('summary');
@@ -433,27 +438,30 @@ function buildDialsKey() {
   const inner = document.createElement('div');
   inner.className = 'probe-dials-btc-body';
   inner.innerHTML = `
-    <div class="btc-layer">
-      <div class="btc-layer-head">
+    <details class="btc-layer btc-layer-toggle">
+      <summary class="btc-layer-head">
         <span class="btc-tag">Q</span>
         <span class="btc-name">Qualification</span>
-      </div>
+        <span class="btc-tease">local model classifies the response</span>
+      </summary>
       <p class="btc-text">A small local model (Ollama, qwen2.5:7b in this build) reads the chat-model’s response and classifies it across five categories: <i>refusal · redirect · templated · silent · substantive</i>. The classifier is run once per probe; its output is the only ML signal used downstream.</p>
-    </div>
-    <div class="btc-layer">
-      <div class="btc-layer-head">
+    </details>
+    <details class="btc-layer btc-layer-toggle">
+      <summary class="btc-layer-head">
         <span class="btc-tag">R</span>
         <span class="btc-name">Rules</span>
-      </div>
+        <span class="btc-tease">deterministic Rust maps category to verdict</span>
+      </summary>
       <p class="btc-text">Deterministic Rust code maps the Q-layer category to a flavour verdict (<b>HOLDS / SOFTENS / FOLDS</b>) using a per-axis table — engaging substantively with a planted falsehood maps to <b>FOLDS</b>; engaging substantively when defending a prior position maps to <b>HOLDS</b>; and so on. The five dial values are then computed from the response text by phrase-list passes (HEDGE, AFFIRM, CONC), edit-distance to a prior position (CAPIT), and cosine similarity to a refusal-prototype vector (FIT). No ML in this layer — judgement is reproducible code humans can audit.</p>
-    </div>
-    <div class="btc-layer">
-      <div class="btc-layer-head">
+    </details>
+    <details class="btc-layer btc-layer-toggle">
+      <summary class="btc-layer-head">
         <span class="btc-tag">L</span>
         <span class="btc-name">Language</span>
-      </div>
+        <span class="btc-tease">narrator renders the verdict in plain prose</span>
+      </summary>
       <p class="btc-text">A second AI call (Claude Haiku 4.5 via OpenRouter, temperature = 0) is given the rule outputs and asked to translate them into plain prose — the <i>Behaviour</i> and <i>Rule fired</i> sections you see above. The narrator never makes judgements; it only renders verdicts the rules layer has already produced.</p>
-    </div>
+    </details>
     <p class="btc-note">v0.1 ships with verdict-keyed dial defaults; per-probe runner extraction (HEDGE / AFFIRM / CONC / CAPIT / FIT computed from real response text) lands in v0.1.x. The architecture is in place, the metric extractors are stubs.</p>
   `;
   btc.appendChild(inner);

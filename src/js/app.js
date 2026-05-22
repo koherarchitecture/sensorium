@@ -19,6 +19,8 @@ import * as categoryVis from './category-vis.js';
 import * as chat from './chat.js';
 import * as sidebar from './sidebar.js';
 import * as toneSuggestions from './tone-suggestions.js';
+import * as modelPick from './model-pick.js';
+import * as usageLine from './usage-line.js';
 import { setOllama, setOpenRouter } from './calibration-strip.js';
 import { isTauri, Settings, Ollama, ApiKey } from './ipc.js';
 
@@ -28,6 +30,7 @@ async function boot() {
   probesModal.init();
   filterPanel.init();
   toneSuggestions.init();
+  usageLine.init();
   // Category icons + per-row verdict strip + per-probe word bar.
   // Renders from the static HTML preview content so visualisations
   // are visible before any backend call lands. updateFromFingerprint
@@ -50,21 +53,43 @@ async function boot() {
       if (nextModel) {
         chat.setModel(nextModel);
         updateHeaderModel(nextModel);
+        // Dhyeya #09: same reset as the top-bar picker path — clear the
+        // cartography panel since the saved fingerprint is for the
+        // previously-active model.
+        filterPanel.resetForModelChange(nextModel);
       }
+    },
+  });
+
+  // Top-bar model picker (v0.1.6) — dropdown popover on the titlebar
+  // `.model-pick` button. Lists every OpenRouter model live; on select,
+  // persists via Settings.active_model, updates header + chat.
+  modelPick.init({
+    onSelect: (nextModel) => {
+      chat.setModel(nextModel);
+      // model-pick.js updates the header text itself, but call here
+      // too so the typography transform stays consistent with the
+      // settings-save path.
+      updateHeaderModel(nextModel);
+      // Dhyeya #09: clear the cartography panel so it doesn't read as
+      // the new model's reading. User can click refresh to re-calibrate.
+      filterPanel.resetForModelChange(nextModel);
     },
   });
 
   // Chat — wired regardless of first-run state so the static preview
   // remains interactive even before calibration completes. The active
-  // model is read from settings if available.
-  let activeModel = 'anthropic/claude-sonnet-4.6';
+  // model is read from settings if available; the header shows "—"
+  // until a real value lands so no model name is implied pre-load.
+  let activeModel = null;
   if (isTauri) {
     try {
       const s = await Settings.get();
       if (s && s.active_model) activeModel = s.active_model;
     } catch (_) {}
   }
-  updateHeaderModel(activeModel);
+  if (activeModel) updateHeaderModel(activeModel);
+  else activeModel = 'anthropic/claude-haiku-4.5';  // chat needs a default to route to on first message; haiku is cheap + fast for unselected first-send
   await chat.init({ model: activeModel });
 
   // Conversations sidebar — wires the drawer toggle, the search input,

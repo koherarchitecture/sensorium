@@ -197,7 +197,25 @@ function wireOllamaStep() {
   const skip = document.getElementById('fr-ollama-skip');
   const pullBtn = document.getElementById('fr-ollama-pull');
 
-  if (recheck) recheck.addEventListener('click', refreshOllamaPanel);
+  if (recheck) recheck.addEventListener('click', async () => {
+    // Visible loading state — Dhyeya #04: button used to silently re-run
+    // the panel refresh, looked dead. Now it disables itself and shows
+    // a status line while the async work happens, then restores.
+    const statusEl = document.getElementById('fr-ollama-status');
+    const originalLabel = recheck.textContent;
+    recheck.disabled = true;
+    recheck.textContent = 'Re-checking…';
+    if (statusEl) {
+      statusEl.textContent = 'Re-checking Ollama…';
+      statusEl.setAttribute('data-state', 'pending');
+    }
+    try {
+      await refreshOllamaPanel();
+    } finally {
+      recheck.disabled = false;
+      recheck.textContent = originalLabel;
+    }
+  });
   if (continueBtn) continueBtn.addEventListener('click', () => goToStep('calibrate'));
   if (skip) skip.addEventListener('click', () => {
     // Lets users proceed even when daemon isn't running yet — they can

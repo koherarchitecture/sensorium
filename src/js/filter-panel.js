@@ -28,6 +28,33 @@ export function setEnabledClasses(classes) {
   applyClassFilter();
 }
 
+/// Reset the cartography panel to the awaiting-calibration state.
+/// Called when the user switches to a different chat model: the
+/// previous fingerprint is no longer valid for the new model, so we
+/// clear it and indicate that calibration is needed. The user can
+/// click the refresh button (data-action="refresh") to run a fresh
+/// calibration against the new model.
+///
+/// Dhyeya #09: panel used to keep showing the previous model's name
+/// and reading after a model change, which read as broken.
+export function resetForModelChange(newModel) {
+  _state.fingerprint = null;
+  const titleEl = document.querySelector('.panel-title');
+  if (titleEl) {
+    const leaf = newModel ? String(newModel).split('/').pop() : '';
+    titleEl.textContent = leaf || 'awaiting first calibration';
+  }
+  const metaSpans = document.querySelectorAll('.panel-meta > span');
+  if (metaSpans.length >= 5) {
+    metaSpans[0].textContent = '— probes';
+    metaSpans[4].textContent = 'not yet calibrated';
+  }
+  // Hide tone-cues row — it was derived from a fingerprint that's now stale.
+  import('./tone-suggestions.js')
+    .then((m) => m.update(null))
+    .catch(() => { /* non-fatal */ });
+}
+
 export function applyFingerprint(fp) {
   _state.fingerprint = fp;
   if (!fp) return;
@@ -120,9 +147,16 @@ export async function refresh() {
     // Preview: nothing to refresh — leave static sample in place.
     return;
   }
+  const btn = document.querySelector('[data-action="refresh"]');
+  if (btn) btn.setAttribute('data-state', 'running');
   try {
     const fp = await Calibration.fullRefresh();
     applyFingerprint(fp);
+    // After a refresh, usage on the OpenRouter key has changed.
+    // Best-effort update of the usage line; failures stay quiet.
+    import('./usage-line.js')
+      .then((m) => m.refresh(true))
+      .catch(() => { /* non-fatal */ });
   } catch (err) {
     // Don't blow up the UI on a refresh failure — the runner errors are
     // expected until ipc::run_full_refresh is wired through to the
@@ -130,6 +164,8 @@ export async function refresh() {
     // header rather than the connection-status strip.
     // eslint-disable-next-line no-console
     console.warn('refresh failed', err);
+  } finally {
+    if (btn) btn.removeAttribute('data-state');
   }
 }
 

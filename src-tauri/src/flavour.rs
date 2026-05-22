@@ -134,6 +134,42 @@ fn validate_flavour(cfg: &FlavourConfig) -> Result<()> {
     Ok(())
 }
 
+/// Parse + validate a flavour from JSON bytes, then write the JSON
+/// (re-serialised from the parsed config to canonicalise formatting)
+/// to `<user_data_dir>/flavours/<slug>.json`. Returns the parsed config.
+///
+/// This is the install path for user-provided flavours: From URL fetches
+/// bytes via HTTP; From file reads bytes from a path; both then route
+/// through here. The slug comes from the parsed config — the filename
+/// is derived from it, not from the URL or source path.
+///
+/// Validation happens before any disk write — a malformed flavour
+/// cannot replace an installed one.
+pub fn install_flavour_from_bytes(
+    bytes: &[u8],
+    user_data_dir: &Path,
+) -> Result<FlavourConfig> {
+    let cfg: FlavourConfig = serde_json::from_slice(bytes)
+        .context("parsing flavour JSON bytes")?;
+    validate_flavour(&cfg)?;
+    if cfg.slug.contains('/') || cfg.slug.contains('\\') || cfg.slug.contains("..") {
+        anyhow::bail!(
+            "flavour slug '{}' contains path-traversal characters; refusing to install",
+            cfg.slug
+        );
+    }
+    let dest = user_data_dir.join("flavours").join(format!("{}.json", cfg.slug));
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating flavours dir at {}", parent.display()))?;
+    }
+    let canonical = serde_json::to_vec_pretty(&cfg)
+        .context("re-serialising flavour for write")?;
+    fs::write(&dest, &canonical)
+        .with_context(|| format!("writing flavour to {}", dest.display()))?;
+    Ok(cfg)
+}
+
 /// Copy a bundled flavour file into the user-data flavours directory
 /// if the user-data version is missing. Used at first run.
 pub fn ensure_flavour_in_user_data(

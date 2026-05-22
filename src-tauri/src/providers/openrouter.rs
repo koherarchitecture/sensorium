@@ -326,3 +326,61 @@ struct PricingRaw {
     prompt: String,
     completion: String,
 }
+
+// Auth-key endpoint shape — describes the user's current usage and
+// any rate / spend limits OpenRouter has on their key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageInfo {
+    /// Cumulative spend in USD for the current period (across the key).
+    pub usage: f64,
+    /// Hard limit in USD; None means no fixed ceiling.
+    pub limit: Option<f64>,
+    /// Optional human label OpenRouter stores against the key.
+    pub label: Option<String>,
+    /// Whether the underlying key is configured as free-tier (true) or
+    /// paid (false / null on response). Surfaced for UI hint only.
+    pub is_free_tier: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct AuthKeyResponse {
+    data: AuthKeyData,
+}
+
+#[derive(Deserialize)]
+struct AuthKeyData {
+    usage: Option<f64>,
+    limit: Option<f64>,
+    label: Option<String>,
+    is_free_tier: Option<bool>,
+}
+
+impl OpenRouterClient {
+    /// Query OpenRouter's `/api/v1/auth/key` endpoint for the key's
+    /// current usage + limit. Used to populate the user-side cost
+    /// surface (the cost-line on the cartography panel).
+    ///
+    /// Telemetry-not-introspection: the position is about the model;
+    /// the user's own spend is fair to surface.
+    pub async fn usage(&self) -> Result<UsageInfo> {
+        let url = format!("{}/auth/key", BASE_URL);
+        let resp: AuthKeyResponse = self
+            .http
+            .get(&url)
+            .bearer_auth(&self.api_key)
+            .header("HTTP-Referer", "https://koher.app/sensorium")
+            .header("X-Title", "Sensorium")
+            .send()
+            .await
+            .context("openrouter usage request failed")?
+            .json()
+            .await
+            .context("openrouter usage JSON parse failed")?;
+        Ok(UsageInfo {
+            usage: resp.data.usage.unwrap_or(0.0),
+            limit: resp.data.limit,
+            label: resp.data.label,
+            is_free_tier: resp.data.is_free_tier,
+        })
+    }
+}

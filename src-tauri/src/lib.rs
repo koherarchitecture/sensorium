@@ -97,6 +97,7 @@ pub fn run() {
 
             // Provider
             ipc::list_models,
+            ipc::openrouter_usage,
 
             // Ollama
             ipc::ollama_status,
@@ -117,6 +118,9 @@ pub fn run() {
 
             // Flavour management
             ipc::seed_active_flavour,
+            ipc::install_flavour_from_url,
+            ipc::install_flavour_from_file,
+            ipc::open_external_url,
 
             // Workflow
             ipc::get_workflow,
