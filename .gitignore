@@ -11,8 +11,14 @@ dist/
 node_modules/
 package-lock.json
 
-# Synced asset (regenerated at build time from /ui-system/)
-src/assets/koher-ui.css
+# Synced asset — refreshed locally at build time from /ui-system/
+# (the script scripts/sync-koher-ui.sh overwrites this file). From
+# v0.1.7 onward the vendored copy IS tracked in git so CI (which has
+# no access to the parent /ui-system/ folder) can build without
+# invoking the sync script. When the source CSS in /ui-system/
+# changes, run the sync script locally and commit the diff — that
+# is the canonical update path. Prior branches kept this file
+# gitignored; the v0.1.7 branch un-ignores it and commits the file.
 
 # OS / editor
 .DS_Store
