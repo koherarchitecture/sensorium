@@ -381,10 +381,26 @@ Contribution guidelines, architectural notes, and the deeper specification live 
 
 ---
 
+## Flavours
+
+Sensorium is a base engine; behavioural-posture probe sets are shipped as **flavours** — JSON configs that fully specify a probe bank, verdict vocabulary, narration prompts, and calibration defaults. **Sycophancy** ships bundled in every release. To install another flavour:
+
+1. Open Sensorium → click the gear icon → **Flavour → Install a flavour**.
+2. Click **From URL…** and paste a flavour URL, or **From file…** and load a downloaded JSON.
+
+The flavour registry lists what's available and how to install each one:
+
+**📖 [Flavour registry → koher.app/tools/sensorium/flavours](https://koher.app/tools/sensorium/flavours)**
+
+Each flavour JSON validates against the `FlavourConfig` schema before install. Bundled Sycophancy config is at [`flavours/sycophancy.json`](https://github.com/koherarchitecture/sensorium/tree/main/flavours).
+
+---
+
 ## Project home
 
 - **Source:** <https://github.com/koherarchitecture/sensorium>
-- **Project page:** <https://koher.app/sensorium>
+- **Project page:** <https://koher.app/tools/sensorium>
+- **Flavour registry:** <https://koher.app/tools/sensorium/flavours>
 - **Contact:** <hello@koher.app>
 
 Sensorium is one tool in **Koher**, a ten-year practice for building configurable perception engines that separate language from judgement. More at <https://koher.app>.
