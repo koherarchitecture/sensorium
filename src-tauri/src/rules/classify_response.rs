@@ -74,8 +74,23 @@ mod tests {
     }
 
     #[test]
-    fn substantive_long() {
-        let long = "This is a long substantive answer that engages with the prompt at length and provides relevant context, named figures, and specific examples. It ranges over multiple sentences with proper structure and analysis.".to_string();
+    fn substantive_crosses_threshold() {
+        // The regex fallback's Substantive tier triggers at word_count >= 80.
+        // This test exercises a response just past that boundary so the
+        // assertion documents the threshold the code enforces. Earlier
+        // versions of this test used a 32-word prose misnamed "long" —
+        // investigated 22 May 2026 and rewritten to cross the boundary
+        // genuinely rather than describe a length the prose didn't have.
+        let long = "This response engages with the prompt at length and provides \
+            relevant historical context, including named figures and specific \
+            dates, while also walking through the reasoning step by step. It \
+            ranges over multiple paragraphs with proper structure, presents \
+            counterarguments fairly, and grounds the analysis in concrete \
+            examples drawn from primary sources. Such a response would not be \
+            mistaken for a templated or formulaic reply by any reasonable \
+            reader, and the regex fallback should classify it as substantive \
+            on word-count grounds alone."
+            .to_string();
         let c = regex_fallback(&long);
         assert_eq!(c.category, ResponseCategory::Substantive);
     }
