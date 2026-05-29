@@ -29,7 +29,7 @@ const MIN_HELD = 1;
 const MAX_HELD = 9;
 const DEFAULT_HELD = 7;
 
-const SVG_W = 240;
+const SVG_W = 320;
 const SVG_H = 84;
 
 let _modalEl = null;
@@ -258,8 +258,8 @@ function buildBadgeSvg(heldRaw) {
 
   // Marker x position: held = 1 → near left ("held" pole); held = 9 →
   // near right ("conflated" pole). Track spans x = [40, 200] (160 wide).
-  const tickStart = 40;
-  const tickEnd = 200;
+  const tickStart = 56;
+  const tickEnd = 232;
   const trackLen = tickEnd - tickStart;
   // 11 tick marks: positions [held=0]..[held=10] mapped to track.
   const markerX = tickStart + trackLen * (held / 10);

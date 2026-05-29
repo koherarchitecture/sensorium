@@ -67,7 +67,7 @@ impl Default for Settings {
 
         Self {
             version: 1,
-            active_model: "anthropic/claude-sonnet-4.6".into(),
+            active_model: "anthropic/claude-haiku-4.5".into(),
             ollama_model: "qwen2.5:7b".into(),
             calibration_on_every_session: true,
             filter_cartography_refresh_hours: 24,

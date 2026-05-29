@@ -59,6 +59,7 @@
   --hue-refusal:     #B8412C;
   --hue-silent:      #897F6F;
   --hue-bronze:      #A0823B;
+  --hue-gold:        #E8B86D;
 
   --type-display: 'Fraunces', Georgia, serif;
   --type-body:    'Source Serif 4', Georgia, serif;
@@ -516,105 +517,203 @@ html, body {
   color: var(--hue-refusal);
 }
 
-/* Sensed-split badge in filter-panel (v0.1.7).
+/* Sensed-split dial in filter-panel (v0.1.7 — galvanometer redesign 22 May 2026).
    The instrument's reading surface. Distinct from any self-rated badge
-   per canon rule 5. */
+   per canon rule 5. Vertical needle on a 180° arc, wavers analog-style,
+   pulses on each chat round. */
 .sensed-split-badge {
-  display: none;
+  display: block;
   margin: 14px 0 0;
-  padding: 12px 14px;
+  padding: 16px 14px 12px;
   border: 1px solid var(--paper-rule-2);
   border-radius: 3px;
   background: rgba(232, 184, 109, 0.06);
   font-family: var(--type-body);
 }
-.sensed-split-badge[data-state="visible"] { display: block; }
-.sensed-split-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 10px;
+.sensed-split-badge[data-state="hidden"] { display: none; }
+/* Awaiting calibration: dim the dial visually, hide per-dial breakdown,
+   show the prominent Calibrate CTA. */
+.sensed-split-badge[data-state="awaiting"] .sensed-split-dial-svg,
+.sensed-split-badge[data-state="awaiting"] .sensed-split-readout,
+.sensed-split-badge[data-state="awaiting"] .sensed-split-direction,
+.sensed-split-badge[data-state="awaiting"] .sensed-split-meta,
+.sensed-split-badge[data-state="awaiting"] .sensed-split-dials,
+.sensed-split-badge[data-state="awaiting"] .sensed-split-help { display: none; }
+.sensed-split-badge[data-state="visible"] .sensed-split-awaiting { display: none; }
+
+.sensed-split-awaiting {
+  display: block;
+  padding: 14px 6px 8px;
 }
-.sensed-split-title {
-  font-family: var(--type-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  font-weight: 600;
-  color: var(--hue-bronze, #C75B39);
-}
-.sensed-split-sub {
+.sensed-split-awaiting-msg {
   font-family: var(--type-body);
   font-style: italic;
-  font-size: 13px;
+  font-size: 13.5px;
+  line-height: 1.55;
   color: var(--ink-paper-2);
+  margin-bottom: 14px;
+  text-align: center;
 }
-.sensed-split-ratio {
-  margin-left: auto;
-  font-family: var(--type-mono);
-  font-size: 22px;
-  font-weight: 500;
-  color: var(--ink-paper-1);
-  letter-spacing: 0.02em;
-}
-.sensed-split-bar {
+.sensed-split-calibrate-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 18px;
+  background: var(--hue-bronze);
+  color: var(--paper);
+  border: 1px solid var(--hue-bronze);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--type-label);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  transition: filter 0.15s ease;
 }
-.sensed-split-anchor {
+.sensed-split-calibrate-btn:hover { filter: brightness(0.94); }
+.sensed-split-calibrate-btn[data-state="running"] {
+  opacity: 0.78;
+  pointer-events: none;
+}
+.sensed-split-calibrate-btn[data-state="running"] .sensed-split-calibrate-label::after {
+  content: '…';
+}
+.sensed-split-calibrate-btn[data-state="running"] .sensed-split-calibrate-label-default { display: none; }
+.sensed-split-calibrate-btn .sensed-split-calibrate-label-running { display: none; }
+.sensed-split-calibrate-btn[data-state="running"] .sensed-split-calibrate-label-running { display: inline; }
+.sensed-split-calibrate-cost {
+  font-family: var(--type-mono);
+  font-size: 11px;
+  color: rgba(247, 243, 237, 0.78);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.sensed-split-eyebrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.sensed-split-eyebrow-l {
   font-family: var(--type-mono);
   font-size: 10.5px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  color: var(--hue-bronze);
+  font-weight: 600;
+}
+.sensed-split-eyebrow-r {
+  font-family: var(--type-body);
+  font-style: italic;
+  font-size: 12px;
   color: var(--ink-paper-3);
-  flex: 0 0 auto;
 }
-.sensed-split-track {
-  position: relative;
-  flex: 1 1 auto;
-  height: 6px;
-  background: var(--paper-rule-2);
-  border-radius: 3px;
+
+.sensed-split-dial-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  margin: 2px auto 0;
 }
-.sensed-split-marker {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  margin-left: -7px;
-  margin-top: -7px;
-  border-radius: 50%;
-  background: var(--hue-bronze, #C75B39);
-  border: 2px solid var(--paper-bg, #F7F3ED);
-  transition: left 0.4s ease;
+.sensed-split-dial-svg .face-arc       { fill: none; stroke: var(--ink-paper-4); stroke-width: 1.1; opacity: 0.85; }
+.sensed-split-dial-svg .face-arc-outer { fill: none; stroke: var(--ink-paper-4); stroke-width: 0.7; opacity: 0.35; }
+.sensed-split-dial-svg .tick-major     { stroke: var(--ink-paper); stroke-width: 1.1; opacity: 0.92; stroke-linecap: round; }
+.sensed-split-dial-svg .tick-minor     { stroke: var(--ink-paper-3); stroke-width: 0.6; opacity: 0.7; stroke-linecap: round; }
+.sensed-split-dial-svg .tick-num       { fill: var(--ink-paper-2); font-family: var(--type-mono); font-size: 9.5px; }
+.sensed-split-dial-svg .tick-num.major { fill: var(--ink-paper); font-weight: 500; }
+.sensed-split-dial-svg .anchor         { fill: var(--ink-paper-3); font-family: var(--type-display); font-style: italic; font-size: 13px; }
+.sensed-split-dial-svg .anchor-sub     { fill: var(--ink-paper-4); font-family: var(--type-mono); font-size: 8.5px; letter-spacing: 0.18em; text-transform: uppercase; }
+
+.sensed-split-dial-svg .conf-halo            { fill: rgba(160, 130, 59, 0.16); }
+.sensed-split-dial-svg .target-marker        { fill: var(--hue-gold); stroke: var(--hue-gold); stroke-width: 0.5; }
+.sensed-split-dial-svg .target-marker-line   { stroke: var(--hue-gold); stroke-width: 0.7; stroke-dasharray: 2 2; opacity: 0.6; fill: none; }
+.sensed-split-dial-svg .needle               { stroke: var(--hue-bronze); stroke-width: 1.6; stroke-linecap: round; fill: none; }
+.sensed-split-dial-svg .needle-tail          { stroke: var(--hue-bronze); stroke-width: 1.5; stroke-linecap: round; opacity: 0.42; }
+.sensed-split-dial-svg .needle-pivot-outer   { fill: var(--paper); stroke: var(--hue-bronze); stroke-width: 1.2; }
+.sensed-split-dial-svg .needle-pivot-inner   { fill: var(--hue-bronze); }
+.sensed-split-dial-svg .needle-pivot-glow    { fill: var(--hue-bronze); opacity: 0.16; }
+
+.sensed-split-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 6px;
 }
-.sensed-split-target {
-  position: absolute;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  margin-left: -4px;
-  margin-top: -4px;
-  border-radius: 50%;
-  background: transparent;
-  border: 1.5px dashed var(--ink-paper-2);
-  transition: left 0.3s ease;
+.sensed-split-readout-side {
+  font-family: var(--type-display);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-paper-3);
+  line-height: 1.4;
+  min-width: 7ch;
 }
+.sensed-split-readout-side.l { text-align: right; }
+.sensed-split-readout-side.r { text-align: left; }
+.sensed-split-ratio {
+  font-family: var(--type-mono);
+  font-weight: 400;
+  font-size: 32px;
+  color: var(--ink-paper);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.sensed-split-ratio .colon {
+  font-family: var(--type-display);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--hue-bronze);
+  margin: 0 1px;
+  font-size: 28px;
+  transform: translateY(-1px);
+}
+
+.sensed-split-direction {
+  font-family: var(--type-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hue-bronze);
+  text-align: center;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
 .sensed-split-meta {
   display: flex;
-  gap: 14px;
+  justify-content: center;
+  gap: 18px;
   font-family: var(--type-mono);
-  font-size: 11.5px;
-  color: var(--ink-paper-2);
-  margin-bottom: 8px;
-  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--ink-paper-3);
+  margin-top: 6px;
 }
-.sensed-split-direction { font-style: italic; }
-.sensed-split-band { color: var(--ink-paper-3); }
-.sensed-split-summary { color: var(--ink-paper-3); }
+.sensed-split-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.sensed-split-meta .legend-sensed::before {
+  content: ''; display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--hue-bronze);
+}
+.sensed-split-meta .legend-target::before {
+  content: ''; display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: transparent; border: 1.4px solid var(--hue-gold);
+}
+.sensed-split-meta .legend-band::before {
+  content: ''; display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; background: transparent; border: 1.4px solid var(--ink-paper-3);
+}
+
 .sensed-split-dials {
-  margin: 6px 0 6px;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--paper-rule);
   font-family: var(--type-body);
   font-size: 12.5px;
   color: var(--ink-paper-2);
@@ -638,41 +737,53 @@ html, body {
 }
 .sensed-split-dials[open] summary::before { transform: rotate(90deg); }
 .sensed-split-dial-list {
-  margin: 8px 0 0 16px;
+  margin: 10px 0 0 0;
   display: grid;
-  grid-template-columns: max-content 1fr max-content;
+  grid-template-columns: repeat(5, 1fr);
   column-gap: 10px;
-  row-gap: 4px;
+  row-gap: 6px;
 }
-.sensed-split-dial-list dt {
-  font-family: var(--type-mono);
-  font-size: 11px;
-  color: var(--ink-paper-2);
+.sensed-split-dial-list .ribbon-dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
 }
-.sensed-split-dial-list .dial-track {
+.sensed-split-dial-list .ribbon-bar {
   position: relative;
-  align-self: center;
-  height: 3px;
-  background: var(--paper-rule-2);
-  border-radius: 2px;
+  width: 100%;
+  height: 28px;
+  background: rgba(0,0,0,0.04);
+  border-radius: 1px;
+  overflow: hidden;
 }
-.sensed-split-dial-list .dial-fill {
+.sensed-split-dial-list .ribbon-bar-fill {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--ink-paper-2);
-  border-radius: 2px;
-  opacity: 0.6;
+  left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to top, var(--hue-bronze) 0%, var(--hue-gold) 100%);
+  opacity: 0.85;
+  transition: height 0.45s cubic-bezier(0.22, 0.6, 0.2, 1);
 }
-.sensed-split-dial-list .dial-value {
+.sensed-split-dial-list .ribbon-bar-tick {
+  position: absolute; left: 0; right: 0; top: 50%;
+  height: 1px; background: rgba(0,0,0,0.08);
+}
+.sensed-split-dial-list .ribbon-label {
   font-family: var(--type-mono);
-  font-size: 10.5px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--ink-paper-3);
-  text-align: right;
 }
+.sensed-split-dial-list .ribbon-value {
+  font-family: var(--type-mono);
+  font-size: 9px;
+  color: var(--ink-paper-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .sensed-split-help {
-  margin: 4px 0 0;
+  margin: 10px 0 0;
   font-family: var(--type-body);
   font-style: italic;
   font-size: 12px;
@@ -1556,11 +1667,13 @@ html, body {
 .mode-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 12px;
   font-family: var(--type-mono);
   font-size: 10px;
   color: var(--ink-paper-3);
 }
+.mode-bar .refresh-action { margin-left: auto; }
 
 .mode-dropdown { position: relative; }
 
@@ -3230,12 +3343,13 @@ body[data-first-run="true"] .first-run { display: flex; }
 .btc-layer.btc-layer-toggle {
   border: 1px solid var(--paper-rule);
   border-radius: 3px;
-  padding: 8px 12px;
+  padding: 8px 14px 8px 12px;
   background: rgba(255, 255, 255, 0.25);
 }
 .btc-layer.btc-layer-toggle summary {
   list-style: none;
   cursor: pointer;
+  padding-right: 6px;
 }
 .btc-layer.btc-layer-toggle summary::-webkit-details-marker { display: none; }
 .btc-layer.btc-layer-toggle .btc-tease {
@@ -3243,6 +3357,11 @@ body[data-first-run="true"] .first-run { display: flex; }
   font-style: italic;
   font-size: 12px;
   color: var(--ink-paper-3);
+  padding-right: 4px;
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 .btc-layer.btc-layer-toggle[open] .btc-tease { display: none; }
 .btc-layer.btc-layer-toggle .btc-text {
@@ -3251,8 +3370,13 @@ body[data-first-run="true"] .first-run { display: flex; }
 .btc-layer-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   margin-bottom: 4px;
+}
+.btc-layer-head .btc-tease {
+  flex: 1 1 100%;
+  padding-left: 32px;
 }
 .btc-tag {
   font-family: var(--type-mono);
@@ -3763,36 +3887,65 @@ body[data-first-run="true"] .first-run { display: flex; }
                Hidden until a fingerprint arrives that supports the
                sensed-split register (flavour must declare a
                split_ratio_mapping). -->
-          <div class="sensed-split-badge" id="sensed-split-badge" data-state="hidden">
-            <div class="sensed-split-head">
-              <span class="sensed-split-title">SENSED</span>
-              <span class="sensed-split-sub">sensed split</span>
-              <span class="sensed-split-ratio" id="sensed-split-ratio">—:—</span>
+          <div class="sensed-split-badge" id="sensed-split-badge" data-state="awaiting">
+            <div class="sensed-split-eyebrow">
+              <span class="sensed-split-eyebrow-l">SENSED</span>
+              <span class="sensed-split-eyebrow-r"><em>sensed split &mdash; the instrument's reading</em></span>
             </div>
-            <div class="sensed-split-bar" aria-hidden="true">
-              <span class="sensed-split-anchor">held</span>
-              <div class="sensed-split-track">
-                <div class="sensed-split-marker" id="sensed-split-marker" style="left: 50%;"></div>
-                <div class="sensed-split-target" id="sensed-split-target" style="left: 70%;"
-                     title="your target ratio"></div>
+            <div class="sensed-split-awaiting" id="sensed-split-awaiting">
+              <p class="sensed-split-awaiting-msg">Instrument is uncalibrated. Run a calibration to take the first reading.</p>
+              <button type="button" class="sensed-split-calibrate-btn" id="sensed-split-calibrate-btn" data-action="refresh">
+                <span class="sensed-split-calibrate-label">
+                  <span class="sensed-split-calibrate-label-default">Calibrate this model</span>
+                  <span class="sensed-split-calibrate-label-running">Calibrating</span>
+                </span>
+                <span class="sensed-split-calibrate-cost">~$0.18</span>
+              </button>
+            </div>
+
+            <!-- Galvanometer dial. viewBox 0 0 320 200; pivot at (160, 168); arc radius 128. -->
+            <svg class="sensed-split-dial-svg" id="sensed-split-dial-svg" viewBox="0 0 320 200" role="img" aria-label="Sensed-split dial">
+              <path id="sensed-split-halo" class="conf-halo" d=""></path>
+              <path class="face-arc-outer" d="M 26 168 A 138 138 0 0 1 294 168" />
+              <path class="face-arc"       d="M 36 168 A 128 128 0 0 1 284 168" />
+              <g id="sensed-split-ticks"></g>
+              <text class="anchor" x="14"  y="186" text-anchor="start">conflated</text>
+              <text class="anchor" x="306" y="186" text-anchor="end">held</text>
+              <line id="sensed-split-target-line" class="target-marker-line" x1="160" y1="168" x2="160" y2="40"/>
+              <polygon id="sensed-split-target-tri" class="target-marker" points="-5,-2.5 5,-2.5 0,7" transform="translate(160 36)"/>
+              <g id="sensed-split-needle-group" transform="translate(160 168)">
+                <line class="needle-tail" x1="0" y1="0" x2="0" y2="22"/>
+                <line class="needle" x1="0" y1="0" x2="0" y2="-118"/>
+                <circle class="needle-pivot-glow"  cx="0" cy="0" r="12"/>
+                <circle class="needle-pivot-outer" cx="0" cy="0" r="5.5"/>
+                <circle class="needle-pivot-inner" cx="0" cy="0" r="2.2"/>
+              </g>
+            </svg>
+
+            <div class="sensed-split-readout">
+              <div class="sensed-split-readout-side l"><em>conflated</em></div>
+              <div class="sensed-split-ratio" id="sensed-split-ratio">
+                <span id="sensed-split-held">—</span><span class="colon">:</span><span id="sensed-split-conf">—</span>
               </div>
-              <span class="sensed-split-anchor">conflated</span>
+              <div class="sensed-split-readout-side r"><em>held</em></div>
             </div>
+            <div class="sensed-split-direction" id="sensed-split-direction">&mdash;</div>
             <div class="sensed-split-meta">
-              <span class="sensed-split-direction" id="sensed-split-direction">—</span>
-              <span class="sensed-split-band" id="sensed-split-band">band —</span>
-              <span class="sensed-split-summary" id="sensed-split-summary">—</span>
+              <span class="legend-sensed">sensed</span>
+              <span class="legend-target">target <span id="sensed-split-target-val">—:—</span></span>
+              <span class="legend-band">band ±<span id="sensed-split-band">—</span></span>
             </div>
+
             <details class="sensed-split-dials" id="sensed-split-dials">
               <summary>per-dial breakdown</summary>
-              <dl class="sensed-split-dial-list" id="sensed-split-dial-list">
+              <div class="sensed-split-dial-list" id="sensed-split-dial-list">
                 <!-- populated by filter-panel.js -->
-              </dl>
+              </div>
             </details>
             <p class="sensed-split-help">
-              The instrument reads the model on its own terms. The marker shows
-              the instrument's reading; the dot shows your target. Coaching cues
-              read the gap between them.
+              The needle is what the instrument senses. The gold marker on the rim is your target.
+              Coaching cues read the gap between them. The needle wavers and flicks with each chat round &mdash;
+              that's the analog character, not measurement noise to ignore.
             </p>
           </div>
 
@@ -4334,8 +4487,8 @@ body[data-first-run="true"] .first-run { display: flex; }
             </span>
             <span class="value">
               <select class="settings-select" id="settings-chat-model">
-                <option>anthropic/claude-sonnet-4.6</option>
                 <option>anthropic/claude-haiku-4.5</option>
+                <option>anthropic/claude-sonnet-4.6</option>
                 <option>anthropic/claude-opus-4.7</option>
                 <option>openai/gpt-5-mini</option>
                 <option>meta-llama/llama-3.3-70b-instruct</option>

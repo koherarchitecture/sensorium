@@ -21,8 +21,8 @@ let _modelIds = null;
 let _onSelect = null;
 
 const FALLBACK_MODELS = [
-  'anthropic/claude-sonnet-4.6',
   'anthropic/claude-haiku-4.5',
+  'anthropic/claude-sonnet-4.6',
   'anthropic/claude-opus-4.7',
   'openai/gpt-5-mini',
   'meta-llama/llama-3.3-70b-instruct',

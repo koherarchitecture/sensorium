@@ -34,7 +34,7 @@ const STATE = {
                         // a new id and start one)
 };
 
-let _activeModel = 'anthropic/claude-sonnet-4.6';
+let _activeModel = 'anthropic/claude-haiku-4.5';
 
 // v0.1.2 ships only the Sycophancy flavour. Hardcoded here so the
 // persistence layer records something meaningful per exchange. When
@@ -204,6 +204,12 @@ export async function sendMessage(content) {
       }
       STATE.history.push({ role: 'assistant', content: finalText || '' });
       _saveExchange('assistant', finalText || '');
+      // v0.1.7: pulse the sensed-split dial on each chat round to give
+      // the analog flick character. Dynamic import keeps the chat→panel
+      // dependency soft.
+      import('./filter-panel.js').then((m) => {
+        if (m.pulseChatRound) m.pulseChatRound(1);
+      }).catch(() => { /* non-fatal */ });
     } else {
       // Preview: synthetic echo so the chat feels alive.
       await new Promise((r) => setTimeout(r, 250));
@@ -217,6 +223,10 @@ export async function sendMessage(content) {
       // Preview mode also records the exchange — a no-op outside Tauri,
       // since _saveExchange short-circuits when isTauri is false.
       _saveExchange('assistant', reply);
+      // Same pulse in preview mode for the design flow.
+      import('./filter-panel.js').then((m) => {
+        if (m.pulseChatRound) m.pulseChatRound(1);
+      }).catch(() => { /* non-fatal */ });
     }
   } catch (err) {
     if (STATE.currentAssistantEl) {

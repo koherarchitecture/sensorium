@@ -18,10 +18,12 @@ let _state = {
 };
 
 export function init() {
-  const refreshBtn = document.querySelector('[data-action="refresh"]');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', refresh);
-  }
+  // Attach to every [data-action="refresh"] — there's the small header
+  // icon AND the prominent Calibrate-this-model button inside the dial
+  // card. Both should trigger a fresh calibration.
+  document.querySelectorAll('[data-action="refresh"]').forEach((el) => {
+    el.addEventListener('click', refresh);
+  });
 }
 
 export function setEnabledClasses(classes) {
@@ -55,9 +57,14 @@ export function resetForModelChange(newModel) {
     .then((m) => m.update(null))
     .catch(() => { /* non-fatal */ });
 
-  // Hide sensed-split badge — same reason as the tone-cues row.
+  // Flip sensed-split badge to awaiting — the dial card stays visible
+  // with the Calibrate-this-model button as the CTA. User clicks it
+  // explicitly to run the new model's calibration; we don't auto-trigger
+  // any more — auto-trigger raced the manual-click handler and made the
+  // button feel "not pressable for a long time" (reported 22 May 2026).
   const badge = document.getElementById('sensed-split-badge');
-  if (badge) badge.setAttribute('data-state', 'hidden');
+  if (badge) badge.setAttribute('data-state', 'awaiting');
+  DIAL.reset();
 }
 
 export function applyFingerprint(fp) {
@@ -158,8 +165,12 @@ export async function refresh() {
     // Preview: nothing to refresh — leave static sample in place.
     return;
   }
-  const btn = document.querySelector('[data-action="refresh"]');
-  if (btn) btn.setAttribute('data-state', 'running');
+  // Mark ALL refresh affordances as running: the small icon in the
+  // panel header AND the big "Calibrate this model" button in the
+  // sensed-split awaiting card. querySelector (singular) used to miss
+  // the second one.
+  const btns = document.querySelectorAll('[data-action="refresh"]');
+  btns.forEach((b) => b.setAttribute('data-state', 'running'));
   try {
     const fp = await Calibration.fullRefresh();
     applyFingerprint(fp);
@@ -176,7 +187,7 @@ export async function refresh() {
     // eslint-disable-next-line no-console
     console.warn('refresh failed', err);
   } finally {
-    if (btn) btn.removeAttribute('data-state');
+    btns.forEach((b) => b.removeAttribute('data-state'));
   }
 }
 
@@ -267,6 +278,218 @@ function escapeHtml(s) {
 // "your split ratio". The target marker is labelled "your target
 // ratio" — the user's setting, not a self-rating.
 
+// Galvanometer dial — v0.1.7 redesign 22 May 2026.
+// Replaces the prior horizontal-marker badge. Architecture: a wobble
+// loop runs at requestAnimationFrame independently of reading updates;
+// setSensedSplit() updates the target reading and the needle eases
+// toward it; pulseChatRound() injects a transient flick into the wobble
+// signal each chat round.
+//
+// Geometry: 180° arc, pivot at (160, 168), radius 128. held ∈ [1, 9]
+// maps to angle ∈ [-90°, +90°] from vertical. Step = 22.5°.
+
+const DIAL = (function () {
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const CX = 160, CY = 168, R = 128;
+
+  // Dial state (singleton).
+  const state = {
+    targetHeld:    5,
+    targetTarget:  7,
+    band:          1,
+    perDial:       [],
+    displayedHeld: 5,
+    pulseStart:    -100,
+    pulseAmp:      0,
+    tStart:        performance.now() / 1000,
+    initialised:   false,
+    running:       false,
+    lastRatio:     null,
+  };
+
+  function heldToAngle(h) { return (h - 5) * 22.5; }
+  function arcPoint(deg, radius) {
+    const a = (deg - 90) * Math.PI / 180;
+    return { x: CX + radius * Math.cos(a), y: CY + radius * Math.sin(a) };
+  }
+
+  function renderTicks() {
+    const group = document.getElementById('sensed-split-ticks');
+    if (!group) return;
+    group.innerHTML = '';
+    // Minor ticks at half-integer positions (1.5, 2.5, ..., 8.5).
+    for (let h = 1.5; h < 9; h += 1) {
+      const a = heldToAngle(h);
+      const p1 = arcPoint(a, R - 3);
+      const p2 = arcPoint(a, R - 9);
+      const l = document.createElementNS(SVG_NS, 'line');
+      l.setAttribute('class', 'tick-minor');
+      l.setAttribute('x1', p1.x.toFixed(1));
+      l.setAttribute('y1', p1.y.toFixed(1));
+      l.setAttribute('x2', p2.x.toFixed(1));
+      l.setAttribute('y2', p2.y.toFixed(1));
+      group.appendChild(l);
+    }
+    // Major ticks at integers 1..9 + numerals.
+    for (let h = 1; h <= 9; h++) {
+      const a = heldToAngle(h);
+      const p1 = arcPoint(a, R - 1);
+      const p2 = arcPoint(a, R - 14);
+      const l = document.createElementNS(SVG_NS, 'line');
+      l.setAttribute('class', 'tick-major');
+      l.setAttribute('x1', p1.x.toFixed(1));
+      l.setAttribute('y1', p1.y.toFixed(1));
+      l.setAttribute('x2', p2.x.toFixed(1));
+      l.setAttribute('y2', p2.y.toFixed(1));
+      group.appendChild(l);
+      const np = arcPoint(a, R + 12);
+      const t = document.createElementNS(SVG_NS, 'text');
+      const isMajor = (h === 1 || h === 5 || h === 9);
+      t.setAttribute('class', isMajor ? 'tick-num major' : 'tick-num');
+      t.setAttribute('x', np.x.toFixed(1));
+      t.setAttribute('y', (np.y + 3).toFixed(1));
+      t.setAttribute('text-anchor', 'middle');
+      t.textContent = String(h);
+      group.appendChild(t);
+    }
+  }
+
+  function updateConfHalo(held, band) {
+    const halo = document.getElementById('sensed-split-halo');
+    if (!halo) return;
+    if (band <= 1 || !Number.isFinite(held)) { halo.setAttribute('d', ''); return; }
+    const half = band === 2 ? 9 : 18;
+    const aMin = heldToAngle(held) - half;
+    const aMax = heldToAngle(held) + half;
+    const rIn = R - 14, rOut = R + 4;
+    const p1 = arcPoint(aMin, rIn), p2 = arcPoint(aMin, rOut);
+    const p3 = arcPoint(aMax, rOut), p4 = arcPoint(aMax, rIn);
+    const d = `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)} A ${rOut} ${rOut} 0 0 1 ${p3.x.toFixed(1)} ${p3.y.toFixed(1)} L ${p4.x.toFixed(1)} ${p4.y.toFixed(1)} A ${rIn} ${rIn} 0 0 0 ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} Z`;
+    halo.setAttribute('d', d);
+  }
+
+  function updateTargetMarker(target) {
+    if (!Number.isFinite(target)) return;
+    const tri = document.getElementById('sensed-split-target-tri');
+    const line = document.getElementById('sensed-split-target-line');
+    const a = heldToAngle(target);
+    const p = arcPoint(a, R + 6);
+    if (tri) tri.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${a.toFixed(2)})`);
+    const e = arcPoint(a, R - 12);
+    if (line) { line.setAttribute('x2', e.x.toFixed(1)); line.setAttribute('y2', e.y.toFixed(1)); }
+  }
+
+  function directionFor(h) {
+    if (h >= 7) return 'held-leaning';
+    if (h <= 3) return 'conflated-leaning';
+    return 'balanced';
+  }
+
+  function renderRibbon(perDial) {
+    const list = document.getElementById('sensed-split-dial-list');
+    if (!list) return;
+    if (!Array.isArray(perDial) || perDial.length === 0) {
+      list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = perDial.map((d) => {
+      const v = Number.isFinite(d && d.value) ? d.value : 0;
+      const pct = Math.max(0, Math.min(100, v * 100));
+      const label = (d && (d.label || d.slug)) ? String(d.label || d.slug).slice(0, 4).toUpperCase() : '·';
+      return `
+        <div class="ribbon-dial" title="${escapeHtml(d && (d.name || d.label || d.slug) || '')}">
+          <div class="ribbon-bar">
+            <div class="ribbon-bar-tick"></div>
+            <div class="ribbon-bar-fill" style="height: ${pct.toFixed(0)}%"></div>
+          </div>
+          <div class="ribbon-value">${v.toFixed(2)}</div>
+          <div class="ribbon-label">${escapeHtml(label)}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function applyReadout() {
+    const h = Math.max(1, Math.min(9, Math.round(state.displayedHeld)));
+    setText('sensed-split-held', String(h));
+    setText('sensed-split-conf', String(10 - h));
+    setText('sensed-split-direction', directionFor(h));
+    setText('sensed-split-target-val', `${state.targetTarget}:${10 - state.targetTarget}`);
+    setText('sensed-split-band', String(state.band));
+  }
+
+  function loop() {
+    if (!state.running) return;
+    const now = performance.now() / 1000;
+    const t = now - state.tStart;
+
+    // 1) Ease displayed reading toward target (spring-damp)
+    state.displayedHeld += (state.targetHeld - state.displayedHeld) * 0.08;
+
+    // 2) Wobble — mostly still, with slow drift + transient pulse on
+    //    chat rounds. Earlier version had high-frequency jitter that
+    //    read as "erratic at variable times". Calmed: idle wobble is
+    //    a single slow sinusoid; flick on chat round is the main motion.
+    const bandScale = state.band === 1 ? 0.18 : (state.band === 2 ? 0.45 : 0.9);
+    const drift = bandScale * 0.32 * Math.sin(t * 0.45);
+    const pulseAge = now - state.pulseStart;
+    // Damped sinusoid — flicks for ~1.6s after pulse, then settles.
+    const pulse = state.pulseAmp * Math.exp(-pulseAge * 1.8) * Math.sin(pulseAge * 6);
+    const wobble = drift + pulse;
+
+    // 3) Apply needle rotation
+    const angle = heldToAngle(state.displayedHeld) + wobble;
+    const ng = document.getElementById('sensed-split-needle-group');
+    if (ng) ng.setAttribute('transform', `translate(${CX} ${CY}) rotate(${angle.toFixed(3)})`);
+
+    // 4) Update text readouts at ~10Hz
+    state._frame = (state._frame || 0) + 1;
+    if (state._frame % 6 === 0) applyReadout();
+
+    requestAnimationFrame(loop);
+  }
+
+  function setSensedSplit(reading) {
+    if (!state.initialised) {
+      renderTicks();
+      state.initialised = true;
+    }
+    if (typeof reading.held === 'number')   state.targetHeld   = clamp1to9(reading.held);
+    if (typeof reading.target === 'number') state.targetTarget = clamp1to9(reading.target);
+    if (typeof reading.band === 'number')   state.band         = Math.max(1, Math.min(3, reading.band));
+    if (Array.isArray(reading.per_dial)) {
+      state.perDial = reading.per_dial.slice();
+      renderRibbon(state.perDial);
+    }
+    if (reading.ratio) state.lastRatio = reading.ratio;
+    updateTargetMarker(state.targetTarget);
+    updateConfHalo(state.targetHeld, state.band);
+    if (!state.running) { state.running = true; requestAnimationFrame(loop); }
+  }
+
+  function pulseChatRound(intensity) {
+    state.pulseStart = performance.now() / 1000;
+    state.pulseAmp = (3.5 + Math.random() * 2.5) * (intensity || 1);
+  }
+
+  function reset() {
+    state.targetHeld = 5;
+    state.displayedHeld = 5;
+    state.band = 1;
+    state.pulseAmp = 0;
+    state.perDial = [];
+    state.lastRatio = null;
+    renderRibbon([]);
+    updateConfHalo(state.targetHeld, state.band);
+  }
+
+  function clamp1to9(v) { return Math.max(1, Math.min(9, Number(v) || 5)); }
+
+  return { setSensedSplit, pulseChatRound, reset };
+})();
+
+// Public — chat.js calls this on each assistant-response settle.
+export function pulseChatRound(intensity) { DIAL.pulseChatRound(intensity); }
+
 async function refreshSensedSplitBadge(fp) {
   const badge = document.getElementById('sensed-split-badge');
   if (!badge) return;
@@ -281,67 +504,31 @@ async function refreshSensedSplitBadge(fp) {
   }
 
   if (!reading) {
-    badge.setAttribute('data-state', 'hidden');
+    // No reading available — flavour declares no split_ratio_mapping,
+    // or IPC errored. Flip to awaiting so the Calibrate CTA shows.
+    badge.setAttribute('data-state', 'awaiting');
     return;
   }
 
-  // Marker position: held ∈ [1, 9] maps to track position [10%, 90%].
-  // (The track endpoints are visually pinned to "held"/"conflated"
-  // labels — the canon-excluded 0/10 positions don't appear on screen.)
-  const markerPct = sensedSplitTrackPercent(reading.held);
+  // Read the target setting (preference for instant sync read).
   const targetHeld = getTargetSplitHeldSync();
-  const targetPct = sensedSplitTrackPercent(targetHeld);
 
-  setText('sensed-split-ratio', reading.ratio || '—:—');
-  setText('sensed-split-direction', reading.direction || '—');
-  setText('sensed-split-band', `band ±${reading.band ?? '—'}`);
-  setText('sensed-split-summary', reading.verdict_summary || '—');
-
-  const marker = document.getElementById('sensed-split-marker');
-  if (marker) marker.style.left = `${markerPct}%`;
-  const target = document.getElementById('sensed-split-target');
-  if (target) target.style.left = `${targetPct}%`;
-
-  // Per-dial breakdown — gridded dt / dial-track / dial-value triplets.
-  const dialList = document.getElementById('sensed-split-dial-list');
-  if (dialList) {
-    const dials = Array.isArray(reading.per_dial) ? reading.per_dial : [];
-    if (dials.length === 0) {
-      dialList.innerHTML = '';
-      const details = document.getElementById('sensed-split-dials');
-      if (details) details.style.display = 'none';
-    } else {
-      const details = document.getElementById('sensed-split-dials');
-      if (details) details.style.display = '';
-      dialList.innerHTML = dials.map((d) => {
-        const pct = Math.max(0, Math.min(100, (d.value || 0) * 100));
-        return `
-          <dt>${escapeHtml(d.label || d.slug)}</dt>
-          <dd class="dial-track"><div class="dial-fill" style="width: ${pct.toFixed(0)}%"></div></dd>
-          <dd class="dial-value">${pct.toFixed(0)}%</dd>
-        `;
-      }).join('');
-    }
-  }
+  DIAL.setSensedSplit({
+    held:     reading.held,
+    target:   targetHeld,
+    band:     reading.band,
+    per_dial: reading.per_dial,
+    ratio:    reading.ratio,
+  });
 
   badge.setAttribute('data-state', 'visible');
 
-  // Re-read the target from disk in the background — covers the case
-  // where the user changed the target in Settings between renders. The
-  // marker position only updates on the next fingerprint refresh, which
-  // is fine: the badge is a fingerprint-driven surface.
+  // Background — re-read target from disk in case it changed in Settings.
   if (isTauri) {
     getTargetSplitHeld().then((held) => {
-      const t = document.getElementById('sensed-split-target');
-      if (t) t.style.left = `${sensedSplitTrackPercent(held)}%`;
+      DIAL.setSensedSplit({ target: held });
     }).catch(() => {});
   }
-}
-
-function sensedSplitTrackPercent(held) {
-  const h = Math.max(1, Math.min(9, Number(held) || 5));
-  // [1, 9] → [10%, 90%]: each step of held is 10% along the track.
-  return h * 10;
 }
 
 function setText(id, text) {

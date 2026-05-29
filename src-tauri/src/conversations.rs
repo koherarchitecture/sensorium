@@ -359,7 +359,7 @@ mod tests {
             role: role.to_string(),
             content: content.to_string(),
             timestamp_iso: String::new(),
-            model: "anthropic/claude-sonnet-4.6".to_string(),
+            model: "anthropic/claude-haiku-4.5".to_string(),
             flavour: "sycophancy".to_string(),
         }
     }

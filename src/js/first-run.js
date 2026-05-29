@@ -225,12 +225,12 @@ function wireOllamaStep() {
       recheck.textContent = originalLabel;
     }
   });
-  if (continueBtn) continueBtn.addEventListener('click', () => goToStep('calibrate'));
+  if (continueBtn) continueBtn.addEventListener('click', () => goToStep('target'));
   if (skip) skip.addEventListener('click', () => {
     // Lets users proceed even when daemon isn't running yet — they can
     // start Ollama later. The Q-layer will degrade until it is running.
     _state.ollamaReady = false;
-    goToStep('calibrate');
+    goToStep('target');
   });
   if (pullBtn) pullBtn.addEventListener('click', startPull);
 }
