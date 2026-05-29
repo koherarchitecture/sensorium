@@ -1,0 +1,195 @@
+name: build-linux
+
+# Builds the Sensorium Linux artefacts — a Debian .deb and a single-file
+# .flatpak bundle — for BOTH amd64 and arm64, on GitHub-hosted Linux
+# runners, and uploads them. Mirrors build-windows.yml.
+#
+#   • amd64  → ubuntu-24.04        (standard x86_64 hosted runner)
+#   • arm64  → ubuntu-24.04-arm    (native arm64 hosted runner — FREE
+#                                    for public repos; koherarchitecture/
+#                                    sensorium qualifies. No QEMU tax,
+#                                    no cross-compile: arm64 is built on
+#                                    real arm64 hardware. This replaces
+#                                    the Parallels arm64 VM.)
+#
+# Trigger modes (same shape as build-windows.yml):
+#   1. workflow_dispatch (manual) — pick the workflow, optionally set
+#      `source-ref` to choose which branch/tag's CODE to build (default
+#      v0.1.7) and `release-tag` to attach the artefacts to a Release.
+#      Without release-tag the artefacts upload as workflow artefacts.
+#   2. push to a v* tag — cadence path; attaches to the matching Release.
+#   3. pull_request (path-filtered) — CI on source-touching PRs.
+#
+# Why a `source-ref` input: this workflow lives on `main` (GitHub only
+# offers workflow_dispatch for workflows on the default branch), but the
+# release work lives on version branches like v0.1.7. `source-ref` lets
+# the run check out and build the version branch's code while the
+# workflow definition itself is discovered from main.
+#
+# Why .deb + .flatpak from CI: retires both Linux dev hosts (the x86_64
+# box and the Parallels arm64 VM). The .deb build is fast; the .flatpak
+# step pays a one-time GNOME runtime download per run (a cache step is a
+# future optimisation).
+
+on:
+  workflow_dispatch:
+    inputs:
+      source-ref:
+        description: 'Branch/tag whose code to build (default v0.1.7).'
+        required: false
+        default: 'v0.1.7'
+        type: string
+      release-tag:
+        description: 'Optional release tag to attach the artefacts to. Leave empty to upload as workflow artefacts only.'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'flavours/**'
+      - 'packaging/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'tauri.conf.json'
+      - '.github/workflows/build-linux.yml'
+
+permissions:
+  contents: write  # so the workflow can attach artefacts to a GitHub Release on tag push
+
+jobs:
+  build:
+    name: Build Linux ${{ matrix.arch }} (.deb + .flatpak)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout source (the ref to build)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source-ref || github.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Rust toolchain (native)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry, git, target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
+
+      - name: Install Tauri Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            build-essential \
+            curl wget file \
+            libssl-dev \
+            libxdo-dev \
+            libsoup-3.0-dev \
+            pkg-config \
+            jq
+
+      - name: npm install
+        run: npm install
+
+      - name: Confirm vendored koher-ui.css is present
+        run: |
+          if [ ! -f "src/assets/koher-ui.css" ]; then
+            echo "::error::src/assets/koher-ui.css missing — the v0.1.7+ branches vendor this file because /ui-system/ is outside the repo. Build the ref that has it (source-ref=v0.1.7)."
+            exit 1
+          fi
+          echo "koher-ui.css present ($(stat -c%s src/assets/koher-ui.css) bytes)"
+
+      - name: Build .deb (native ${{ matrix.arch }})
+        # Native build (no --target) so the .deb lands at
+        # target/release/bundle/deb/ where build-flatpak.sh expects it,
+        # named sensorium_<version>_<arch>.deb with the host's dpkg arch.
+        run: npx tauri build --bundles deb
+
+      - name: Install flatpak tooling + flathub remote
+        run: |
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build .flatpak (single-file bundle, ${{ matrix.arch }})
+        # build-flatpak.sh reads version from package.json, defaults arch
+        # to `dpkg --print-architecture` (matches the runner), consumes the
+        # .deb produced above, and installs the GNOME runtime/SDK from
+        # flathub via flatpak-builder --install-deps-from=flathub.
+        run: bash scripts/build-flatpak.sh
+
+      - name: Locate artefacts + hashes
+        id: artefacts
+        run: |
+          DEB=$(ls src-tauri/target/release/bundle/deb/*.deb | head -1)
+          FLAT=$(ls dist/sensorium-*-${{ matrix.arch }}.flatpak | head -1)
+          if [ -z "$DEB" ] || [ -z "$FLAT" ]; then
+            echo "::error::missing artefact — DEB='$DEB' FLAT='$FLAT'"; exit 1
+          fi
+          DEB_SHA=$(sha256sum "$DEB" | awk '{print $1}')
+          FLAT_SHA=$(sha256sum "$FLAT" | awk '{print $1}')
+          echo "deb_path=$DEB"   >> "$GITHUB_OUTPUT"
+          echo "flat_path=$FLAT" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Sensorium Linux ${{ matrix.arch }}"
+            echo ""
+            echo "| Artefact | Size | SHA-256 |"
+            echo "|---|---|---|"
+            echo "| $(basename "$DEB") | $(( $(stat -c%s "$DEB") / 1024 )) KB | \`$DEB_SHA\` |"
+            echo "| $(basename "$FLAT") | $(( $(stat -c%s "$FLAT") / 1024 )) KB | \`$FLAT_SHA\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload .deb artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sensorium-linux-${{ matrix.arch }}-deb
+          path: ${{ steps.artefacts.outputs.deb_path }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload .flatpak artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sensorium-linux-${{ matrix.arch }}-flatpak
+          path: ${{ steps.artefacts.outputs.flat_path }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Attach to GitHub Release (tag-push trigger)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.artefacts.outputs.deb_path }}
+            ${{ steps.artefacts.outputs.flat_path }}
+          fail_on_unmatched_files: true
+
+      - name: Attach to specified release (workflow_dispatch with input)
+        if: github.event_name == 'workflow_dispatch' && inputs.release-tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release-tag }}
+          files: |
+            ${{ steps.artefacts.outputs.deb_path }}
+            ${{ steps.artefacts.outputs.flat_path }}
+          fail_on_unmatched_files: true
