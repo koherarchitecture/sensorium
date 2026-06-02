@@ -204,10 +204,12 @@ export async function sendMessage(content) {
       }
       STATE.history.push({ role: 'assistant', content: finalText || '' });
       _saveExchange('assistant', finalText || '');
-      // v0.1.7: pulse the sensed-split dial on each chat round to give
-      // the analog flick character. Dynamic import keeps the chat→panel
-      // dependency soft.
+      // v0.1.7: drive the sensed-split dial on each chat round. The needle
+      // eases to a LIVE per-turn reading of the model's reply (fast,
+      // deterministic), with a brief analog flick on top. Dynamic import
+      // keeps the chat→panel dependency soft.
       import('./filter-panel.js').then((m) => {
+        if (m.applyTurnReading) m.applyTurnReading(finalText || '');
         if (m.pulseChatRound) m.pulseChatRound(1);
       }).catch(() => { /* non-fatal */ });
     } else {
@@ -365,6 +367,27 @@ export async function loadConversation(conversationId) {
   if (scroll) scroll.scrollTop = scroll.scrollHeight;
   refreshNewChatVisualState();
   focusInput();
+
+  // v0.1.7: the sensed-split needle is a live per-turn instrument — it is
+  // moved only by applyTurnReading() after each assistant reply, and reset to
+  // the per-model baseline at boot. Opening a stored chat replayed the
+  // transcript into the DOM but never touched the needle, so the dial kept
+  // whatever reading was last on it (and after a relaunch showed the uniform
+  // baseline on every chat). Recompute the needle from this chat's last
+  // assistant reply. sensed_split_turn is deterministic (regex + rules, no
+  // LLM, no RNG), so this restores the exact reading the chat last showed —
+  // no per-chat persistence required. A chat whose last turn is a user
+  // message has no reply to read, so the needle is left at whatever it
+  // currently shows (no explicit reset) — a rare case, since stored chats
+  // almost always end on an assistant reply.
+  const lastAssistant = [...STATE.history].reverse()
+    .find((ex) => ex.role === 'assistant' && ex.content);
+  if (lastAssistant) {
+    import('./filter-panel.js').then((m) => {
+      if (m.applyTurnReading) m.applyTurnReading(lastAssistant.content);
+    }).catch(() => { /* non-fatal */ });
+  }
+
   return conversationId;
 }
 

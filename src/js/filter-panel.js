@@ -18,12 +18,39 @@ let _state = {
 };
 
 export function init() {
-  // Attach to every [data-action="refresh"] — there's the small header
-  // icon AND the prominent Calibrate-this-model button inside the dial
-  // card. Both should trigger a fresh calibration.
+  // Small header icon → full refresh (run_full_refresh).
   document.querySelectorAll('[data-action="refresh"]').forEach((el) => {
     el.addEventListener('click', refresh);
   });
+  // The prominent "Calibrate this model" CTA in the awaiting card → the THIN
+  // calibration (run_calibration), the same proven path the first-run wizard
+  // uses. It previously shared data-action="refresh" → run_full_refresh, the
+  // heavier path, and silently swallowed errors — so after a model change the
+  // button cleared its spinner with nothing to show and read as dead.
+  document.querySelectorAll('[data-action="calibrate"]').forEach((el) => {
+    el.addEventListener('click', calibrateFromCTA);
+  });
+}
+
+// Handler for the awaiting-state "Calibrate this model" button: runs the thin
+// calibration with visible running state, and surfaces a failure instead of
+// swallowing it (the old silent console.warn read as "the button is broken").
+async function calibrateFromCTA() {
+  if (!isTauri) return;
+  const btns = document.querySelectorAll('[data-action="calibrate"]');
+  const msg = document.querySelector('.sensed-split-awaiting-msg');
+  btns.forEach((b) => b.setAttribute('data-state', 'running'));
+  try {
+    const fp = await Calibration.run();   // thin calibration — the wizard's path
+    applyFingerprint(fp);                 // flips the badge out of 'awaiting'
+    import('./usage-line.js').then((m) => m.refresh(true)).catch(() => { /* non-fatal */ });
+  } catch (err) {
+    if (msg) msg.textContent = `Calibration failed: ${(err && err.message) ? err.message : err}`;
+    // eslint-disable-next-line no-console
+    console.warn('calibrate (CTA) failed', err);
+  } finally {
+    btns.forEach((b) => b.removeAttribute('data-state'));
+  }
 }
 
 export function setEnabledClasses(classes) {
@@ -180,10 +207,15 @@ export async function refresh() {
       .then((m) => m.refresh(true))
       .catch(() => { /* non-fatal */ });
   } catch (err) {
-    // Don't blow up the UI on a refresh failure — the runner errors are
-    // expected until ipc::run_full_refresh is wired through to the
-    // probes runner. Once it lands, surface the error in the panel
-    // header rather than the connection-status strip.
+    // Surface the failure instead of swallowing it. (run_full_refresh is in
+    // fact wired — identical to run_calibration except probe count — so a
+    // failure here is a runtime cause worth showing: Ollama down, key
+    // missing, budget exhausted. The old silent console.warn made a failed
+    // refresh read as a dead button.)
+    const awaitingMsg = document.querySelector('.sensed-split-awaiting-msg');
+    if (awaitingMsg) awaitingMsg.textContent = `Refresh failed: ${(err && err.message) ? err.message : err}`;
+    const metaSpans = document.querySelectorAll('.panel-meta > span');
+    if (metaSpans.length >= 5) metaSpans[4].textContent = 'refresh failed';
     // eslint-disable-next-line no-console
     console.warn('refresh failed', err);
   } finally {
@@ -417,34 +449,48 @@ const DIAL = (function () {
     setText('sensed-split-band', String(state.band));
   }
 
+  // Settle speed + rest threshold. The dial eases to its reading then STOPS —
+  // it does not hold a perpetual rAF loop. The old idle "waver" ran at 60fps
+  // forever and competed with chat rendering, which read as lag. Now a new
+  // reading or a chat-round pulse wakes the loop; once the needle is at rest
+  // the loop releases the frame and nothing animates while you type.
+  const EASE = 0.40;        // 0.08 → 0.22 → 0.40: fast, responsive per-chat-round settle
+  const SETTLE_EPS = 0.02;
+
+  function wake() {
+    if (!state.running) { state.running = true; requestAnimationFrame(loop); }
+  }
+
   function loop() {
     if (!state.running) return;
     const now = performance.now() / 1000;
-    const t = now - state.tStart;
 
-    // 1) Ease displayed reading toward target (spring-damp)
-    state.displayedHeld += (state.targetHeld - state.displayedHeld) * 0.08;
+    // Ease displayed reading toward target.
+    state.displayedHeld += (state.targetHeld - state.displayedHeld) * EASE;
 
-    // 2) Wobble — mostly still, with slow drift + transient pulse on
-    //    chat rounds. Earlier version had high-frequency jitter that
-    //    read as "erratic at variable times". Calmed: idle wobble is
-    //    a single slow sinusoid; flick on chat round is the main motion.
-    const bandScale = state.band === 1 ? 0.18 : (state.band === 2 ? 0.45 : 0.9);
-    const drift = bandScale * 0.32 * Math.sin(t * 0.45);
+    // Wobble is now ONLY the damped chat-round flick — no perpetual idle
+    // drift — so the needle can come fully to rest and the loop can stop.
     const pulseAge = now - state.pulseStart;
-    // Damped sinusoid — flicks for ~1.6s after pulse, then settles.
     const pulse = state.pulseAmp * Math.exp(-pulseAge * 1.8) * Math.sin(pulseAge * 6);
-    const wobble = drift + pulse;
 
-    // 3) Apply needle rotation
-    const angle = heldToAngle(state.displayedHeld) + wobble;
+    const angle = heldToAngle(state.displayedHeld) + pulse;
     const ng = document.getElementById('sensed-split-needle-group');
     if (ng) ng.setAttribute('transform', `translate(${CX} ${CY}) rotate(${angle.toFixed(3)})`);
 
-    // 4) Update text readouts at ~10Hz
     state._frame = (state._frame || 0) + 1;
     if (state._frame % 6 === 0) applyReadout();
 
+    // Self-terminate once settled and the flick has decayed: snap to the exact
+    // resting angle and release the rAF so nothing runs while idle.
+    const settled = Math.abs(state.targetHeld - state.displayedHeld) < SETTLE_EPS;
+    const pulseDone = Math.abs(pulse) < 0.01 && pulseAge > 2;
+    if (settled && pulseDone) {
+      state.displayedHeld = state.targetHeld;
+      if (ng) ng.setAttribute('transform', `translate(${CX} ${CY}) rotate(${heldToAngle(state.displayedHeld).toFixed(3)})`);
+      applyReadout();
+      state.running = false;
+      return;
+    }
     requestAnimationFrame(loop);
   }
 
@@ -463,12 +509,13 @@ const DIAL = (function () {
     if (reading.ratio) state.lastRatio = reading.ratio;
     updateTargetMarker(state.targetTarget);
     updateConfHalo(state.targetHeld, state.band);
-    if (!state.running) { state.running = true; requestAnimationFrame(loop); }
+    wake(); // animate to the new reading, then the loop stops itself
   }
 
   function pulseChatRound(intensity) {
     state.pulseStart = performance.now() / 1000;
     state.pulseAmp = (3.5 + Math.random() * 2.5) * (intensity || 1);
+    wake(); // a chat-round flick must restart the loop if it had settled
   }
 
   function reset() {
@@ -489,6 +536,31 @@ const DIAL = (function () {
 
 // Public — chat.js calls this on each assistant-response settle.
 export function pulseChatRound(intensity) { DIAL.pulseChatRound(intensity); }
+
+// Public — chat.js calls this after each assistant reply with the reply text.
+// Reads a LIVE per-turn sensed split (fast, deterministic — no extra LLM
+// call) and eases the needle to it, so the dial responds every chat round.
+// Calibration remains the baseline; this is the live conversational layer.
+export async function applyTurnReading(responseText) {
+  if (!isTauri || !responseText) return;
+  let reading = null;
+  try {
+    reading = await SensedSplit.readTurn(responseText);
+  } catch (e) {
+    console.warn('sensed_split_turn failed', e);
+    return;
+  }
+  if (!reading) return;
+  const badge = document.getElementById('sensed-split-badge');
+  if (badge) badge.setAttribute('data-state', 'visible');
+  DIAL.setSensedSplit({
+    held:     reading.held,
+    target:   getTargetSplitHeldSync(),
+    band:     reading.band,
+    per_dial: reading.per_dial,
+    ratio:    reading.ratio,
+  });
+}
 
 async function refreshSensedSplitBadge(fp) {
   const badge = document.getElementById('sensed-split-badge');

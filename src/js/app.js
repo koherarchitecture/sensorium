@@ -23,7 +23,7 @@ import * as modelPick from './model-pick.js';
 import * as usageLine from './usage-line.js';
 import * as badgeExport from './badge-export.js';
 import { setOllama, setOpenRouter } from './calibration-strip.js';
-import { isTauri, Settings, Ollama, ApiKey } from './ipc.js';
+import { isTauri, Settings, Ollama, ApiKey, Fingerprint } from './ipc.js';
 
 async function boot() {
   // Static UI behaviour first — these don't depend on IPC.
@@ -127,6 +127,13 @@ async function boot() {
   // saved settings + run a refresh in the background.
   if (isTauri) {
     await filterPanel.hydrateFromSettings();
+    // Calibrated restart: a persisted fingerprint exists (the boot gate only
+    // lets the chat load when it does), so populate the panel from it rather
+    // than the static sample.
+    try {
+      const fp = await Fingerprint.get();
+      if (fp) filterPanel.applyFingerprint(fp);
+    } catch (_) {}
     // Don't auto-refresh on every launch in v0.1 — settings.calibration_on_every_session
     // controls this; the runner is not yet wired so a refresh would error.
     // Once ipc::run_calibration is implemented, gate this on the setting.

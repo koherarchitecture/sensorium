@@ -3890,11 +3890,11 @@ body[data-first-run="true"] .first-run { display: flex; }
           <div class="sensed-split-badge" id="sensed-split-badge" data-state="awaiting">
             <div class="sensed-split-eyebrow">
               <span class="sensed-split-eyebrow-l">SENSED</span>
-              <span class="sensed-split-eyebrow-r"><em>sensed split &mdash; the instrument's reading</em></span>
+              <span class="sensed-split-eyebrow-r"><em>sensed split &mdash; this conversation, live</em></span>
             </div>
             <div class="sensed-split-awaiting" id="sensed-split-awaiting">
               <p class="sensed-split-awaiting-msg">Instrument is uncalibrated. Run a calibration to take the first reading.</p>
-              <button type="button" class="sensed-split-calibrate-btn" id="sensed-split-calibrate-btn" data-action="refresh">
+              <button type="button" class="sensed-split-calibrate-btn" id="sensed-split-calibrate-btn" data-action="calibrate">
                 <span class="sensed-split-calibrate-label">
                   <span class="sensed-split-calibrate-label-default">Calibrate this model</span>
                   <span class="sensed-split-calibrate-label-running">Calibrating</span>
@@ -3943,9 +3943,10 @@ body[data-first-run="true"] .first-run { display: flex; }
               </div>
             </details>
             <p class="sensed-split-help">
-              The needle is what the instrument senses. The gold marker on the rim is your target.
-              Coaching cues read the gap between them. The needle wavers and flicks with each chat round &mdash;
-              that's the analog character, not measurement noise to ignore.
+              The needle reads the model's latest reply &mdash; it moves each chat round as the conversation
+              goes. Calibration sets the opening baseline; Refresh (&#8635;) above re-probes the model for a
+              fresh full reading. The gold marker on the rim is your target ratio; coaching cues read the gap
+              between the needle and the marker.
             </p>
           </div>
 

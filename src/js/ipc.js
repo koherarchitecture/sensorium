@@ -86,6 +86,13 @@ export const Calibration = {
   fullRefresh: () => invoke('run_full_refresh'),
 };
 
+// Persisted calibration fingerprint (v0.1.8). Returns null when the app has
+// never successfully calibrated. The boot path uses this to enforce the
+// "no uncalibrated chat" invariant across restarts.
+export const Fingerprint = {
+  get: () => invoke('get_fingerprint'),
+};
+
 // Suggested-tone icons (v0.1.3; v0.1.7 reads target/sensed gap) — pure
 // derivation from the current Fingerprint plus the user's target ratio
 // and the engine's sensed-split reading. The Rust IPC is stateless:
@@ -106,6 +113,9 @@ export const Tones = {
 // canon's phrase is reserved for the self-rated register.
 export const SensedSplit = {
   read: (fingerprint) => invoke('sensed_split', { fingerprint }),
+  // Live per-chat-round reading from the model's latest reply (fast,
+  // deterministic — no extra LLM call). Drives the needle each round.
+  readTurn: (responseText) => invoke('sensed_split_turn', { responseText }),
 };
 
 export const Chat = {

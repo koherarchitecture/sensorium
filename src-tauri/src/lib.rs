@@ -24,6 +24,7 @@ mod narrator;
 mod workflow;
 mod flavour;
 mod conversations;
+mod baseline;
 mod ipc;
 
 use std::sync::Arc;
@@ -106,6 +107,7 @@ pub fn run() {
             // Calibration / refresh
             ipc::run_calibration,
             ipc::run_full_refresh,
+            ipc::get_fingerprint,
 
             // Chat
             ipc::send_chat_message,
@@ -118,6 +120,7 @@ pub fn run() {
 
             // Sensed split (v0.1.7)
             ipc::sensed_split,
+            ipc::sensed_split_turn,
 
             // Flavour management
             ipc::seed_active_flavour,

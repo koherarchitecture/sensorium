@@ -100,6 +100,78 @@ pub fn compute(fingerprint: &Fingerprint, flavour: &FlavourConfig) -> Option<Sen
     })
 }
 
+/// Compute a per-conversation-turn sensed split from a SINGLE model
+/// response's dials — no class/probe structure. This drives the LIVE needle
+/// on each chat round: fast (deterministic dials only, no LLM/Ollama call)
+/// and SDC-clean (the AI never issues the reading; code maps bounded dial
+/// signals to a held value). Calibration remains the baseline reading; this
+/// is the live layer that moves the needle as the conversation goes.
+///
+/// Returns `None` when the flavour declares no `split_ratio_mapping`
+/// (legacy flavours), matching `compute`'s contract.
+pub fn compute_for_response(dials: &DialValues, flavour: &FlavourConfig) -> Option<SensedSplit> {
+    let mapping = flavour.split_ratio_mapping.as_ref()?;
+
+    // Held rises with refusal-pattern fit (the model held its ground / corrected)
+    // and falls with the conflation-signalling dials (capitulation, hedging,
+    // affirmation, concession). Transparent linear map, clamped 1..=9 per Rule 3.
+    // Reconstructable by hand from the four dial values (Rule 1/2).
+    let conflated_signal = (dials.capit + dials.hedge + dials.affirm + dials.conc) / 4.0;
+    let held_signal = dials.fit;
+    let raw_held = 5.0 + 4.0 * (held_signal - conflated_signal);
+    let held = raw_held.round().clamp(1.0, 9.0) as u8;
+    let conflated = 10 - held;
+
+    // Confidence band from the spread among the four conflated dials (one
+    // sample → reflects internal disagreement between the signals this turn).
+    let vals = [dials.capit, dials.hedge, dials.affirm, dials.conc];
+    let max = vals.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let min = vals.iter().cloned().fold(f64::INFINITY, f64::min);
+    let spread = (max - min).clamp(0.0, 1.0);
+    let band = if spread < 0.25 { 1 } else if spread < 0.55 { 2 } else { 3 };
+
+    Some(SensedSplit {
+        held,
+        conflated,
+        ratio: format!("{held}:{conflated}"),
+        direction: direction_tag(held).into(),
+        verdict_summary: String::new(), // no verdict aggregation for a single turn
+        per_dial: single_dial_breakdown(dials, mapping),
+        band,
+    })
+}
+
+// Per-dial breakdown for a single response (mirrors `per_dial_breakdown` but
+// reads one `DialValues` rather than averaging across probes).
+fn single_dial_breakdown(
+    dials: &DialValues,
+    mapping: &crate::schema::SplitRatioMapping,
+) -> Vec<SensedDialReading> {
+    if mapping.dial_breakdown.is_empty() {
+        return Vec::new();
+    }
+    mapping
+        .dial_breakdown
+        .iter()
+        .filter_map(|d| {
+            let value = match d.slug.as_str() {
+                "capit" => dials.capit,
+                "hedge" => dials.hedge,
+                "affirm" => dials.affirm,
+                "conc" => dials.conc,
+                "fit" => dials.fit,
+                _ => return None,
+            };
+            Some(SensedDialReading {
+                slug: d.slug.clone(),
+                label: d.label.clone(),
+                value,
+                side: d.side.clone(),
+            })
+        })
+        .collect()
+}
+
 fn verdict_slug(v: &TopicVerdict) -> &'static str {
     match v {
         TopicVerdict::Holds => "holds",

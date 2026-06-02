@@ -28,7 +28,7 @@
 // "calibrate" step — re-running calibration is a separate concern
 // also exposed via the panel's "refresh" affordance.
 
-import { isTauri, NotInTauri, ApiKey, SystemSetup, Ollama, Settings, Calibration } from './ipc.js';
+import { isTauri, NotInTauri, ApiKey, SystemSetup, Ollama, Settings, Calibration, Fingerprint } from './ipc.js';
 import { getTargetSplitHeld, setTargetSplitHeld, formatRatio, directionTag } from './target-ratio.js';
 
 const FR_KEY = 'koher.sensorium.firstRunComplete';
@@ -470,7 +470,11 @@ async function runCalibrationStep() {
       status.setAttribute('data-state', 'warn');
     }
     if (retry) retry.style.display = '';
-    if (finish) finish.disabled = false; // allow finish-without-calibration; panel will show empty state
+    // Do NOT enable finish on calibration failure. An uncalibrated chat state
+    // must not exist: the wizard's calibration is the precondition for the
+    // chat screen. The only way forward is to fix the cause (Ollama daemon,
+    // API key, flavour) and Retry. (Browser preview always succeeds above.)
+    if (finish) finish.disabled = true;
   }
 }
 
@@ -481,7 +485,12 @@ function wireCalibrateStep() {
   if (retry) retry.addEventListener('click', runCalibrationStep);
 
   if (finish) finish.addEventListener('click', async () => {
-    // Mark first-run complete in both stores.
+    // Mark first-run complete in localStorage too — but only as a fallback
+    // signal for browser preview / when the Tauri state read fails. In Tauri
+    // the authoritative completion test is a persisted baseline matching the
+    // active model (see decideInitialVisibility); this flag never overrides it.
+    // No app-version stamp: the wizard decision is gated on the baseline
+    // artifact in code, never on a version number.
     try {
       const existing = JSON.parse(localStorage.getItem(FR_KEY) || '{}');
       existing.completed = true;
@@ -516,27 +525,45 @@ function wireCalibrateStep() {
 // ── Initial visibility decision ─────────────────────────────────────
 
 async function decideInitialVisibility() {
-  let alreadyComplete = false;
-
+  // The wizard decision is gated on OBSERVABLE STATE — a real persisted
+  // calibration (baseline.json) matching the active model — never on an app
+  // version number. This is what makes it correct across binary updates (a
+  // new build can't wrongly skip onboarding) and trivially testable
+  // (`rm baseline.json` → the wizard appears).
+  //
+  // In Tauri the on-disk state is AUTHORITATIVE. localStorage is consulted
+  // only when the Tauri state read itself fails (or in browser preview); it
+  // can never resurrect completion that the disk check has invalidated —
+  // that override was the bug where a stale `completed` flag suppressed the
+  // wizard on a machine that had no usable calibration.
   if (isTauri) {
     try {
       const s = await Settings.get();
-      alreadyComplete = !!s.first_run_complete;
-    } catch (_) { /* fall through to localStorage */ }
+      let onboarded = false;
+      if (s.first_run_complete) {
+        // A completed flag is not enough: require a real fingerprint that
+        // matches the active model (a fingerprint for a different model, or
+        // none at all, means the wizard's calibration must run again).
+        let fp = null;
+        try { fp = await Fingerprint.get(); } catch (_) {}
+        const activeModel = s.active_model || null;
+        onboarded = !!(fp && fp.calibrated_at &&
+          (!activeModel || !fp.model || fp.model === activeModel));
+      }
+      if (onboarded) hide(); else show('apikey');
+      return; // disk read succeeded — it is authoritative; ignore localStorage
+    } catch (_) { /* Settings read failed — fall through to localStorage */ }
   }
 
-  if (!alreadyComplete) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(FR_KEY) || 'null');
-      alreadyComplete = !!(saved && saved.completed);
-    } catch (_) {}
-  }
+  // Fallback path: browser preview, or the Tauri state read threw. Here
+  // localStorage is the only signal available.
+  let alreadyComplete = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem(FR_KEY) || 'null');
+    alreadyComplete = !!(saved && saved.completed);
+  } catch (_) {}
 
-  if (alreadyComplete) {
-    hide();
-  } else {
-    show('apikey');
-  }
+  if (alreadyComplete) hide(); else show('apikey');
 }
 
 async function wireUI() {

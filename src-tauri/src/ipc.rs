@@ -183,13 +183,74 @@ pub async fn ollama_pull(window: Window, model: String) -> Result<(), String> {
 // ── Calibration / refresh ─────────────────────────────────────────
 
 #[tauri::command]
-pub async fn run_calibration(state: State<'_, AppState>) -> Result<Fingerprint, String> {
-    run_probes(&state, /* thin_mode = */ true).await
+pub async fn run_calibration(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Fingerprint, String> {
+    let fp = run_probes(&state, /* thin_mode = */ true).await?;
+    // Persist so the app can confirm at boot that a real calibration exists
+    // (the "no uncalibrated chat" invariant). Failure is logged, not fatal.
+    tracing::info!(
+        "run_calibration: probes complete, classes={} total_probes={}",
+        fp.classes.len(),
+        fp.total_probes
+    );
+    match crate::baseline::save_to_disk(&app, &fp) {
+        Ok(()) => tracing::info!("run_calibration: baseline persisted"),
+        Err(e) => tracing::warn!("run_calibration: failed to persist baseline: {e}"),
+    }
+    Ok(fp)
 }
 
 #[tauri::command]
-pub async fn run_full_refresh(state: State<'_, AppState>) -> Result<Fingerprint, String> {
-    run_probes(&state, /* thin_mode = */ false).await
+pub async fn run_full_refresh(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Fingerprint, String> {
+    let fp = run_probes(&state, /* thin_mode = */ false).await?;
+    if let Err(e) = crate::baseline::save_to_disk(&app, &fp) {
+        tracing::warn!("failed to persist baseline: {e}");
+    }
+    Ok(fp)
+}
+
+/// Return the persisted calibration fingerprint, or `None` if the app has
+/// never successfully calibrated (or the file is unreadable). The frontend
+/// uses this at boot to decide whether the chat may load or the wizard's
+/// calibration must run again.
+///
+/// Flavour-staleness guard (v0.1.7): a baseline written for an older flavour
+/// definition still parses cleanly after an upgrade, which would leave the
+/// chat reading a plausible-but-wrong sensed split with no signal to the
+/// user. So we compare the baseline's `probe_set_version` (which is
+/// `"{slug}-v{flavour_version}"`, set in `probes/runner.rs`) against the
+/// active flavour's identity. On mismatch the baseline is stale: return
+/// `None` so the wizard re-runs and recalibrates — the same recovery path as
+/// a missing/unreadable file. Bumping `flavour_version` in a flavour JSON
+/// after changing its classes or split-ratio mapping therefore auto-
+/// invalidates every old baseline. When no flavour is loaded we cannot
+/// compare, so the baseline is returned unguarded.
+#[tauri::command]
+pub async fn get_fingerprint(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<Fingerprint>, String> {
+    let fp = match crate::baseline::load_from_disk(&app) {
+        Some(fp) => fp,
+        None => return Ok(None),
+    };
+    if let Some(flv) = state.flavour.read().await.as_ref() {
+        let current = format!("{}-v{}", flv.slug, flv.flavour_version);
+        if fp.probe_set_version != current {
+            tracing::info!(
+                "get_fingerprint: baseline stale (probe_set_version {:?} != current {:?}) — treating as uncalibrated",
+                fp.probe_set_version,
+                current
+            );
+            return Ok(None);
+        }
+    }
+    Ok(Some(fp))
 }
 
 async fn run_probes(state: &State<'_, AppState>, thin_mode: bool) -> Result<Fingerprint, String> {
@@ -699,6 +760,28 @@ pub async fn sensed_split(
 ) -> Result<Option<crate::schema::SensedSplit>, String> {
     match state.flavour.read().await.as_ref() {
         Some(flv) => Ok(crate::rules::sensed_split::compute(&fingerprint, flv)),
+        None => Ok(None),
+    }
+}
+
+// ── Live per-turn sensed split (v0.1.7) ────────────────────────────
+//
+// Drives the needle on each chat round. Deliberately FAST: deterministic
+// dials on the model's reply text, regex classification only — NO extra
+// LLM/Ollama call, so it returns in microseconds and the needle responds
+// immediately. SDC-clean: the AI never issues this reading; bounded signals
+// (dials) are mapped to a held value by code. Calibration stays the baseline
+// reading; this is the live layer.
+#[tauri::command]
+pub async fn sensed_split_turn(
+    response_text: String,
+    state: State<'_, AppState>,
+) -> Result<Option<crate::schema::SensedSplit>, String> {
+    let classification = crate::rules::classify_response::regex_fallback(&response_text);
+    let dials =
+        crate::rules::dials::compute_dials(&response_text, &classification.category, None);
+    match state.flavour.read().await.as_ref() {
+        Some(flv) => Ok(crate::rules::sensed_split::compute_for_response(&dials, flv)),
         None => Ok(None),
     }
 }
